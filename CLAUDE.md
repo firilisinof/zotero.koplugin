@@ -28,6 +28,7 @@ make test    # run the specs
 make run     # open the emulator with the plugin loaded
 make link    # re-create the symlinks (make run and make test do this for you)
 make build   # rebuild the emulator, only needed after pulling KOReader
+make package # create dist/zotero.koplugin.zip for installation
 ```
 
 `KOREADER_SRC` defaults to `../koreader` and can point anywhere:
@@ -35,6 +36,8 @@ make build   # rebuild the emulator, only needed after pulling KOReader
 ```
 make test KOREADER_SRC=~/src/koreader
 ```
+
+`make package` uses `tools/package.sh` to archive the current working tree's top-level Lua files and `LICENSE` under `zotero.koplugin/`. It requires `zip`, but no KOReader checkout. The ignored `dist/` directory holds the resulting ZIP. Packaging stages a fresh archive before replacing the previous package. Run `make test` separately before distributing it.
 
 ### Why edits are live
 

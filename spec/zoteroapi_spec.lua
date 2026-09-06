@@ -97,12 +97,28 @@ describe("Zotero API client", function()
     end
 
     before_each(function()
-        -- API keeps its parsed library in module-level fields that init() does
-        -- not clear, so the module itself has to be reloaded per test.
+        -- API is a singleton module, so reload it per test to be sure nothing
+        -- carries over through module-level state.
         ZoteroAPI = package.reload("zoteroapi")
         fake = FakeHttp.new()
         ZoteroAPI.http = fake
         ZoteroAPI.init(new_zotero_dir())
+    end)
+
+    describe("init", function()
+        it("drops the library cached from a previous directory", function()
+            load_library()
+            assert.is_not_nil(ZoteroAPI.getItems()["PARENT01"])
+
+            ZoteroAPI.init(new_zotero_dir())
+
+            assert.is_nil(next(ZoteroAPI.getItems()))
+            assert.is_nil(next(ZoteroAPI.getCollections()))
+        end)
+
+        it("creates the storage directory", function()
+            assert.is_not_nil(lfs.attributes(ZoteroAPI.storage_dir))
+        end)
     end)
 
     describe("settings", function()

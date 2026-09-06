@@ -478,15 +478,33 @@ function API.downloadAndGetPath(key, download_callback)
         local url = "https://api.zotero.org/users/" .. API.getUserID() .. "/items/" .. key .. "/file"
         print("Fetching " .. url)
 
+        -- Download beside the target and move it into place only once the
+        -- response turns out to be good. Writing straight to targetPath would
+        -- replace a perfectly good local copy with an error page.
+        local partialPath = targetPath .. ".part"
+        local partialFile, ioErr = io.open(partialPath, "wb")
+        if partialFile == nil then
+            return nil, "Error: could not open " .. partialPath .. " for writing: " .. tostring(ioErr)
+        end
+
         local r, c, h = API.http.request {
             url = url,
             headers = API.getHeaders(api_key),
             redirect = true,
-            sink = ltn12.sink.file(io.open(targetPath, "wb"))
+            sink = ltn12.sink.file(partialFile)
         }
 
         local e = API.verifyResponse(r, c)
-        if e ~= nil then return nil, e end
+        if e ~= nil then
+            os.remove(partialPath)
+            return nil, e
+        end
+
+        local renamed, renameErr = os.rename(partialPath, targetPath)
+        if not renamed then
+            os.remove(partialPath)
+            return nil, "Error: could not move the download into place: " .. tostring(renameErr)
+        end
     end
 
     local versionFile = io.open(targetDir .. "/version", "w")

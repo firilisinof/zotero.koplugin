@@ -1,0 +1,238 @@
+require("commonrequire")
+package.path = "plugins/zotero.koplugin/?.lua;" .. package.path
+local Env = require("spec.support.zotero_env")
+local FakeUI = require("spec.support.fake_ui")
+local Browser = require("zoterobrowser")
+local Plugin = dofile("plugins/zotero.koplugin/main.lua")
+
+describe("Zotero feature UI", function()
+    local env, api, runtime, browser, plugin
+    before_each(function()
+        env = Env.new()
+        api = env.api
+        env:credentials()
+        env:library()
+        runtime = FakeUI.new()
+        browser = runtime:newBrowser(Browser, api)
+        plugin = setmetatable({ api = api, runtime = runtime, browser = browser,
+            initialized = true, zotero_dialog = {} }, { __index = Plugin })
+    end)
+
+    it("keeps selection and API configuration unchanged when account selection is cancelled", function()
+        plugin:setAccount()
+        assert.equals("RadioButtonWidget", runtime:last().kind)
+        assert.is_true(runtime:last().radio_buttons[1][1].checked)
+        assert.equals("users/4242", api.getLibraryPrefix())
+    end)
+
+    it("edits a group ID and updates the browser after saving", function()
+        plugin:setAccount()
+        runtime:last().callback({ provider = "group" })
+        local dialog = runtime:last()
+        assert.equals("MultiInputDialog", dialog.kind)
+        assert.equals("Group ID", dialog.fields[1].hint)
+        dialog.fields[1].text = "99"
+        dialog.fields[2].text = "group-key"
+        dialog.buttons[1][2].callback()
+        assert.equals("groups/99", api.getLibraryPrefix())
+        assert.equals("collection", browser.current_view.kind)
+        assert.equals("All Items", browser.rows[1].text)
+    end)
+
+    it("leaves invalid account values open for correction", function()
+        plugin:setAccount()
+        runtime:last().callback({ provider = "group" })
+        local dialog = runtime:last()
+        dialog.fields[1].text = "12oops"
+        dialog.buttons[1][2].callback()
+        assert.equals("users/4242", api.getLibraryPrefix())
+        assert.truthy(runtime:last().text:find("positive integer", 1, true))
+    end)
+
+    it("disables every WebDAV control in group libraries", function()
+        api.setAccount("group", "99", "key")
+        local menu = {}
+        plugin:addToMainMenu(menu)
+        local settings = menu.zotero.sub_item_table[5].sub_item_table
+        assert.equals(8, #settings)
+        for index = 6, 8 do assert.is_false(settings[index].enabled_func()) end
+        api.setAccount("user", "4242", "key")
+        for index = 6, 8 do assert.is_true(settings[index].enabled_func()) end
+    end)
+
+    it("saves WebDAV fields and page preferences through their dialogs", function()
+        plugin:setWebdavAccount()
+        local dialog = runtime:last()
+        dialog.fields[1].text, dialog.fields[2].text, dialog.fields[3].text = "https://dav/zotero", "user", "pass"
+        dialog.buttons[1][2].callback()
+        assert.equals("https://dav/zotero", api.getWebDAVUrl())
+        plugin:setItemsPerPage()
+        runtime:last().callback({ value = 12 })
+        assert.equals(12, plugin:getItemsPerPage())
+    end)
+
+    it("decorates downloaded rows while preserving collection navigation", function()
+        env:file("ATTACH01")
+        browser:displayCollection("COLLAAA1")
+        assert.equals("Subfolder/", browser.rows[1].text)
+        assert.truthy(browser.rows[3].text:find("[Downloaded]", 1, true))
+        browser:displaySearchResults("attention")
+        assert.truthy(browser.rows[1].text:find("[Downloaded]", 1, true))
+        assert.equals("Vaswani et al. - Attention Is All You Need", api.getIndex().by_collection.COLLAAA1[2].text)
+    end)
+
+    it("offers collection downloads and attachment notes from hold menus", function()
+        browser:onMenuHold({ key = "COLLAAA1", text = "Papers/", collection = true })
+        assert.equals("Download collection", runtime:last().buttons[1][1].text)
+        browser:onMenuHold({ key = "ATTACH01", text = "Paper" })
+        assert.equals("Show Zotero notes", runtime:last().buttons[1][1].text)
+        runtime:last().buttons[1][1].callback()
+        assert.equals("TextViewer", runtime:last().kind)
+        assert.equals("Worth rereading.", runtime:last().text)
+        browser:showNotes("STANDAL1")
+        assert.equals("No Zotero notes for this item.", runtime:last().text)
+    end)
+
+    it("refreshes the current search when setting and clearing a tag", function()
+        browser:displaySearchResults("attention")
+        plugin:setFilterTag()
+        local dialog = runtime:last()
+        dialog.input = "unmatched"
+        dialog.buttons[1][3].callback()
+        assert.equals("No Results", browser.rows[1].text)
+        assert.equals("attention", browser.current_view.query)
+        plugin:setFilterTag()
+        runtime:last().buttons[1][2].callback()
+        assert.equals("ATTACH01", browser.rows[1].key)
+    end)
+
+    it("does not alter search history on cancel and returns to earlier searches", function()
+        browser:displayCollection("COLLAAA1")
+        browser:onLeftButtonTap()
+        runtime:last().buttons[1][1].callback()
+        assert.equals(0, #browser.paths)
+        browser:navigate{ kind = "search", query = "attention" }
+        browser:navigate{ kind = "search", query = "standalone" }
+        browser:onReturn()
+        assert.equals("attention", browser.current_view.query)
+        browser:onReturn()
+        assert.equals("COLLAAA1", browser.current_view.key)
+    end)
+
+    it("refreshes download markers and reports mixed collection results", function()
+        env.http:on("GET", "/items/ATTACH02/file", { body = "epub" })
+        browser:displayCollection("COLLCCC3")
+        browser:startDownload(function() browser:downloadCollection("COLLCCC3") end)
+        assert.is_nil(api.operation)
+        assert.truthy(browser.rows[2].text:find("[Downloaded]", 1, true))
+        assert.truthy(runtime:last().text:find("Failed: 1", 1, true))
+        assert.truthy(runtime:last().text:find("linked attachment", 1, true))
+    end)
+
+    it("clears operation state and reports cancellation without opening a reader", function()
+        runtime.runner.cancel_on = 1
+        browser:startDownload(function() browser:downloadCollection("COLLAAA1") end)
+        assert.truthy(runtime:last().text:find("Cancelled: 2", 1, true))
+        assert.is_nil(api.operation)
+        assert.is_nil(runtime.opened_path)
+    end)
+
+    it("opens a downloaded file and releases the operation before launching the reader", function()
+        env.http:on("GET", "/items/ATTACH01/file", { body = "pdf" })
+        browser:onMenuSelect({ key = "ATTACH01", text = "Paper" })
+        assert.equals(select(2, api.getDirAndPath("ATTACH01")), runtime.opened_path)
+        assert.is_nil(api.operation)
+    end)
+
+    it("blocks account changes and downloads while a sync is queued", function()
+        plugin:onZoteroSyncAction()
+        assert.equals("sync", api.operation)
+        assert.truthy(api.setAccount("group", "99", "key"))
+        browser:onMenuSelect({ key = "ATTACH01", text = "Paper" })
+        assert.equals(0, runtime.runner.calls)
+        assert.equals("sync", api.operation)
+        assert.equals(1, #runtime.scheduled)
+    end)
+
+    it("keeps automatic syncing opt-in and persists toggle changes", function()
+        plugin:maybeStartupSync()
+        plugin:onZoteroOpenAction()
+        assert.equals(0, #runtime.scheduled)
+        local menu = {}
+        plugin:addToMainMenu(menu)
+        local settings = menu.zotero.sub_item_table[5].sub_item_table
+        settings[3].callback()
+        settings[4].callback()
+        api.init(env.root)
+        assert.is_true(api.getSyncOnStartup())
+        assert.is_true(api.getSyncOnOpen())
+    end)
+
+    it("attempts startup only once per session and skips an offline device", function()
+        api.setSyncOnStartup(true)
+        runtime.online = false
+        plugin:maybeStartupSync()
+        runtime.online = true
+        plugin:maybeStartupSync()
+        assert.equals(0, #runtime.scheduled)
+    end)
+
+    it("schedules startup and suppresses an overlapping browse trigger", function()
+        api.setSyncOnStartup(true)
+        api.setSyncOnOpen(true)
+        plugin:maybeStartupSync()
+        plugin:maybeAutoSync("open")
+        assert.equals(1, #runtime.scheduled)
+        env:syncRoutes()
+        runtime:flush()
+        assert.is_nil(api.operation)
+        assert.is_true(api.getLastSync() > 0)
+    end)
+
+    it("uses a strict 24-hour threshold and does not prompt offline", function()
+        api.setSyncOnOpen(true)
+        api.setLastSync(runtime.clock - 86400)
+        plugin:maybeAutoSync("open")
+        assert.equals(0, #runtime.scheduled)
+        runtime.clock = runtime.clock + 1
+        runtime.online = false
+        plugin:maybeAutoSync("open")
+        assert.equals(0, #runtime.scheduled)
+        runtime.online = true
+        plugin:maybeAutoSync("open")
+        assert.equals(1, #runtime.scheduled)
+    end)
+
+    it("skips automatic sync without credentials", function()
+        api.setSyncOnStartup(true)
+        api.setAPIKey("")
+        plugin:maybeAutoSync("startup")
+        assert.equals(0, #runtime.scheduled)
+    end)
+
+    it("shows last successful sync and retains it on failure", function()
+        assert.equals("Never synced", plugin:lastSyncText())
+        api.setLastSync(500)
+        assert.truthy(plugin:lastSyncText():find("Last synced:", 1, true))
+        env.http:on("GET", "/items%?", { code = 403 })
+        plugin:onZoteroSyncAction()
+        runtime:flush()
+        assert.equals(500, api.getLastSync())
+        assert.truthy(runtime:last().text:find("403", 1, true))
+        assert.is_nil(api.operation)
+    end)
+
+    it("does not stamp success or mutate the index when the second fetch fails", function()
+        api.setLastSync(500)
+        local index = api.getIndex()
+        env.http:on("GET", "/items%?", {
+            headers = { ["total-results"] = "1", ["last-modified-version"] = "2000" },
+            body = '[{"key":"NEW","data":{"itemType":"note","note":"new"}}]',
+        })
+        env.http:on("GET", "/collections%?", { code = 500 })
+        assert.is_not_nil(api.syncAllItems())
+        assert.is_nil(api.getItems().NEW)
+        assert.equals(index, api.getIndex())
+        assert.equals(500, api.getLastSync())
+    end)
+end)

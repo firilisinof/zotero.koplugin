@@ -110,12 +110,27 @@ local function metadataContent(item, metrics)
     }
 end
 
+---@param item table
+---@param metrics table
+---@return table
+local function navigationContent(item, metrics)
+    local width, height = item.content_width, item.dimen.h - item.linesize
+    local title = titleWidget(item.entry, width, metrics)
+    local subtitle = infoWidget(BD.auto(item.entry.subtitle), width, metrics)
+    local top = math.floor((height - title:getSize().h - metrics.gap - metrics.info_height) / 2)
+    item.navigation_widgets = { title = title, subtitle = subtitle }
+    return OverlapGroup:new{
+        dimen = Geom:new{ w = width, h = height }, allow_mirroring = false,
+        at(title, 0, top), at(subtitle, 0, top + title:getSize().h + metrics.gap),
+    }
+end
+
 --- Replace only content, retaining native MenuItem interaction. Example: Row.decorate(item, metrics).
 ---@param item table
 ---@param metrics table
 function Row.decorate(item, metrics)
-    if not item.entry.file_format then return end
-    local content = metadataContent(item, metrics)
+    if not item.entry.file_format and not item.entry.subtitle then return end
+    local content = item.entry.subtitle and navigationContent(item, metrics) or metadataContent(item, metrics)
     item._underline_container[1]:free()
     item._underline_container[1] = content
 end

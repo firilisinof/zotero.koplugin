@@ -1,11 +1,13 @@
 local Menu = require("ui/widget/menu")
 local Row = require("zoterorow")
 local Size = require("ui/size")
+local Header = require("zoteroheader")
+local Screen = require("device").screen
 local _ = require("gettext")
 
 local Browser = Menu:extend{
     no_title = false, is_borderless = true, is_popout = false,
-    title_bar_left_icon = "appbar.search", covers_full_screen = true,
+    covers_full_screen = true,
     return_arrow_propagation = false,
     single_line = true, linesize = Size.line.thin,
 }
@@ -41,9 +43,10 @@ end
 
 --- Initialize navigation once per browser. Example: browser:init().
 function Browser:init()
+    self.custom_title_bar = Header:new{ browser = self, width = self.width or Screen:getWidth() }
     Menu.init(self)
     self.paths = {}
-    self.current_view = { kind = "collection", page = 1 }
+    self.current_view = { kind = "home", page = 1 }
 end
 
 --- Remember each source page before entering another view. Example: browser:navigate{ kind = "device" }.
@@ -59,9 +62,16 @@ end
 --- Return to the actual previous collection or query. Example: browser:onReturn().
 ---@return boolean
 function Browser:onReturn()
-    self.current_view = table.remove(self.paths) or { kind = "collection" }
+    self.current_view = table.remove(self.paths) or { kind = "home" }
     self:refresh()
     self:savePosition()
+    return true
+end
+
+--- Open Zotero home while retaining the source page for Back. Example: browser:onHome().
+---@return boolean
+function Browser:onHome()
+    if self.current_view.kind ~= "home" then self:navigate{ kind = "home" } end
     return true
 end
 
@@ -86,17 +96,42 @@ end
 
 --- Refresh the active view after sync, filtering or download. Example: browser:refresh().
 function Browser:refresh()
-    local view = self.current_view or { kind = "collection" }
+    local view = self.current_view or { kind = "home" }
     -- Account changes clear metadata. Keep the saved destination until its cache returns.
-    self.waiting_for_cache = next(self.api.getItems()) == nil and next(self.api.getCollections()) == nil
+    self.waiting_for_cache = view.kind ~= "home"
+        and next(self.api.getItems()) == nil and next(self.api.getCollections()) == nil
         and self.api.getLastSync() == 0
     while not self.waiting_for_cache and view.kind == "collection" and view.key
         and not self.api.getCollections()[view.key] do
-        view = table.remove(self.paths) or { kind = "collection" }
+        view = table.remove(self.paths) or { kind = "home" }
     end
+    if view.kind == "home" then self:displayHome(view.page) return end
+    if view.kind == "all" then self:displayAllItems(view.page) return end
     if view.kind == "search" then self:displaySearchResults(view.query, view.page) return end
     if view.kind == "device" then self:displayOnDevice(view.query, view.page) return end
     self:displayCollection(view.key, view.page)
+end
+
+--- Offer the everyday destinations without network access. Example: browser:displayHome().
+---@param page integer|nil
+function Browser:displayHome(page)
+    self.current_view = { kind = "home", page = page or 1 }
+    local recent = self.api.getContinueReading(self.api.getLocalLibraryPrefix() or "local")
+    self:setItems({
+        { text = _("Continue reading"), continue_reading = true, enabled = recent ~= nil,
+            subtitle = recent and recent.title or _("No recent document") },
+        { text = _("Collections"), destination = "collection" },
+        { text = _("All items"), destination = "all" },
+        { text = _("On device"), destination = "device" },
+        { text = _("Search"), search = true },
+    }, _("No Items"))
+end
+
+--- List all indexed attachments with an explicit location. Example: browser:displayAllItems().
+---@param page integer|nil
+function Browser:displayAllItems(page)
+    self.current_view = { kind = "all", page = page or 1 }
+    self:setItems(self.api.displaySearchResults(""), _("No Items"))
 end
 
 --- Reopen the last view for the selected library. Example: browser:restoreLibrary().
@@ -154,11 +189,21 @@ end
 function Browser:displayCollection(key, page)
     self.current_view = { kind = "collection", key = key, page = page or 1 }
     local items = self.api.displayCollection(key)
-    if key == nil then
-        table.insert(items, 1, { text = _("All Items"), wildcard_collection = true })
-        table.insert(items, 2, { text = _("On device"), on_device = true })
-    end
     self:setItems(items, _("No Items"))
+end
+
+--- Name the active location, including literal search text. Example: browser:locationTitle().
+---@return string
+function Browser:locationTitle()
+    local view = self.current_view
+    if view.kind == "home" then return _("Zotero home") end
+    if view.kind == "all" then return _("Zotero - All items") end
+    if view.kind == "search" then return _("Zotero - Search: ") .. view.query end
+    if view.kind == "device" then
+        return _("Zotero - On device") .. (view.query ~= "" and (": " .. view.query) or "")
+    end
+    local collection = view.key and self.api.getCollections()[view.key]
+    return _("Zotero - ") .. (collection and collection.data.name or view.key or _("Collections"))
 end
 
 ---@param items ZoteroRow[]
@@ -166,33 +211,46 @@ end
 function Browser:setItems(items, empty_text)
     if #items == 0 then table.insert(items, { text = empty_text, is_label = true }) end
     for _, item in ipairs(items) do
-        if item.collection or item.wildcard_collection or item.on_device then item.bold = true end
+        if item.collection or item.destination then item.bold = true end
     end
     self.position_library = self.position_library or self.api.getLocalLibraryPrefix() or "local"
     self.page = self.current_view.page or 1
-    local title = self.current_view.kind == "device" and _("Zotero - On device") or _("Zotero")
-    self:switchItemTable(title, items, -1)
+    self:switchItemTable(self:locationTitle(), items, -1)
     if not self.waiting_for_cache then self.current_view.page = self.page end
 end
 
 --- Handle row selection. Example: browser:onMenuSelect(row).
 ---@param item ZoteroRow
 function Browser:onMenuSelect(item)
+    if item.enabled == false then return end
+    if item.destination then self:navigate{ kind = item.destination } return end
+    if item.search then self:onLeftButtonTap() return end
+    if item.continue_reading then self:continueReading() return end
     if item.collection then self:navigate{ kind = "collection", key = item.key } return end
-    if item.wildcard_collection then self:navigate{ kind = "search", query = "" } return end
-    if item.on_device then self:navigate{ kind = "device" } return end
     if item.is_label then return end
     local path = self.api.getLocalAttachmentPath(item.key)
-    if path then self:openAttachment(path) return end
-    self:startDownload(function() return self:downloadItem(item) end)
+    if path then self:openAttachment(path, item.key) return end
+    self:startDownload(function() return self:downloadItem(item) end, item.key)
 end
 
---- Open the exact existing document path so KOReader retains its sidecars. Example: browser:openAttachment(path).
+--- Recheck the last document before opening its original path. Example: browser:continueReading().
+function Browser:continueReading()
+    local recent = self.api.getContinueReading(self.api.getLocalLibraryPrefix() or "local")
+    if recent then self:openAttachment(recent.path, recent.key) else self:refresh() end
+end
+
+--- Open the exact existing document path so KOReader retains its sidecars. Example: browser:openAttachment(path, "ATTACH01").
 ---@param path string
-function Browser:openAttachment(path)
+---@param key string
+function Browser:openAttachment(path, key)
     self:savePosition()
+    local library = self.position_library or self.api.getLocalLibraryPrefix() or "local"
+    local position = self.api.getBrowserPosition(library)
     self.close_callback()
-    self.runtime:openReader(path)
+    self.runtime:openReader(path, function(reader)
+        self.api.saveContinueReading(library, key, path)
+        self.runtime:bindReaderReturn(reader, library, position)
+    end)
 end
 
 --- Offer row-specific actions. Example: browser:onMenuHold(row).
@@ -226,7 +284,8 @@ function Browser:showNotes(key)
 end
 
 ---@param task function
-function Browser:startDownload(task)
+---@param key string|nil
+function Browser:startDownload(task, key)
     if not self.api.beginOperation("download") then
         self.runtime:message(_("A Zotero operation is already running."), 3)
         return
@@ -238,7 +297,7 @@ function Browser:startDownload(task)
         self.api.endOperation()
         self:refresh()
         if not ok then self.runtime:message(tostring(path), 5) return end
-        if path then self:openAttachment(path) end
+        if path then self:openAttachment(path, key) end
     end)
 end
 

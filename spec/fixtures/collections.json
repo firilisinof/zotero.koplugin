@@ -1,0 +1,41 @@
+[
+    {
+        "key": "COLLAAA1",
+        "version": 300,
+        "library": { "type": "user", "id": 4242, "name": "spec" },
+        "meta": { "numCollections": 1, "numItems": 3 },
+        "data": {
+            "key": "COLLAAA1",
+            "version": 300,
+            "name": "Papers",
+            "parentCollection": false,
+            "relations": {}
+        }
+    },
+    {
+        "key": "COLLBBB2",
+        "version": 301,
+        "library": { "type": "user", "id": 4242, "name": "spec" },
+        "meta": { "numCollections": 0, "numItems": 0 },
+        "data": {
+            "key": "COLLBBB2",
+            "version": 301,
+            "name": "Zettelkasten",
+            "parentCollection": false,
+            "relations": {}
+        }
+    },
+    {
+        "key": "COLLCCC3",
+        "version": 302,
+        "library": { "type": "user", "id": 4242, "name": "spec" },
+        "meta": { "numCollections": 0, "numItems": 2 },
+        "data": {
+            "key": "COLLCCC3",
+            "version": 302,
+            "name": "Subfolder",
+            "parentCollection": "COLLAAA1",
+            "relations": {}
+        }
+    }
+]

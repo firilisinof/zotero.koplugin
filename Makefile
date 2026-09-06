@@ -9,7 +9,12 @@
 KOREADER_SRC ?= $(abspath $(CURDIR)/../koreader)
 
 PLUGIN_LINK := $(KOREADER_SRC)/plugins/zotero.koplugin
-SPEC_LINK := $(KOREADER_SRC)/spec/unit/zoteroapi_spec.lua
+
+# Every spec/*_spec.lua is linked into KOReader's shared spec/unit directory,
+# and its basename is the name kodev uses to select the test.
+SPEC_SOURCES := $(wildcard $(CURDIR)/spec/*_spec.lua)
+SPEC_LINKS := $(patsubst $(CURDIR)/spec/%,$(KOREADER_SRC)/spec/unit/%,$(SPEC_SOURCES))
+SPEC_NAMES := $(patsubst %_spec.lua,%,$(notdir $(SPEC_SOURCES)))
 
 # KOReader's build system expects GNU tools. Put them on PATH here so no shell
 # setup is needed to run these targets.
@@ -33,18 +38,18 @@ help:
 setup:
 	KOREADER_SRC="$(KOREADER_SRC)" ./tools/setup-dev.sh
 
-link: $(PLUGIN_LINK) $(SPEC_LINK)
+link: $(PLUGIN_LINK) $(SPEC_LINKS)
 
 $(PLUGIN_LINK):
 	@mkdir -p $(dir $@)
 	ln -sfn $(CURDIR) $@
 
-$(SPEC_LINK):
+$(KOREADER_SRC)/spec/unit/%_spec.lua: $(CURDIR)/spec/%_spec.lua
 	@mkdir -p $(dir $@)
-	ln -sfn $(CURDIR)/spec/zoteroapi_spec.lua $@
+	ln -sfn $< $@
 
 unlink:
-	rm -f $(PLUGIN_LINK) $(SPEC_LINK)
+	rm -f $(PLUGIN_LINK) $(SPEC_LINKS)
 
 build: check-koreader
 	cd $(KOREADER_SRC) && ./kodev build
@@ -53,7 +58,7 @@ run: link check-koreader
 	cd $(KOREADER_SRC) && ./kodev run
 
 test: link check-koreader
-	cd $(KOREADER_SRC) && ./kodev test front zoteroapi
+	cd $(KOREADER_SRC) && ./kodev test front $(SPEC_NAMES)
 
 .PHONY: check-koreader
 check-koreader:

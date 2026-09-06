@@ -96,14 +96,20 @@ can diff before adopting anything.
   against KOReader's own specs. Prefix new ones with `zotero`.
 - Assert on behaviour through the public `API.*` functions rather than on internals.
 
+The WebDAV download specs shell out to the real `unzip` against a real zip fixture
+(`spec/fixtures/attachment.zip`), so they cover the unpack step rather than stubbing
+it. That makes them a few milliseconds each instead of microseconds.
+
+Under LuaJIT, `os.execute` returns the exit status as a **number** (0 on success,
+256 on failure), not a boolean. Every number is truthy, so a shelled-out command must
+be checked with `~= 0`.
+
 ## Known warts
 
 Left alone deliberately. Worth knowing before touching the surrounding code.
 
 - `API.init` does not reset the module-level caches, as described above.
   `API.resetSyncState` exists partly to work around this.
-- `API.downloadWebDAV` has an `os.remove(zipPath)` after its `return`, so it is dead
-  code and the downloaded zip is never cleaned up.
 - `API.displaySearchResults` interpolates the query straight into a Lua pattern, so a
   search containing `%`, `-`, `(` or other pattern characters misbehaves or errors.
 - KOReader now warns that the `name` field in `_meta.lua` is deprecated and ignored.

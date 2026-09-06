@@ -659,6 +659,104 @@ describe("Zotero API client", function()
         end)
     end)
 
+    describe("downloadAndGetPath over WebDAV", function()
+        local ZIP_URL = "/zotero/ATTACH01%.zip"
+        local attachment_dir, attachment_path
+
+        before_each(function()
+            set_credentials()
+            load_library()
+            ZoteroAPI.toggleWebDAVEnabled()
+            ZoteroAPI.setWebDAVUrl("https://cloud.example.org/zotero")
+            ZoteroAPI.setWebDAVUser("lucas")
+            ZoteroAPI.setWebDAVPassword("hunter2")
+            attachment_dir, attachment_path = ZoteroAPI.getDirAndPath("ATTACH01")
+        end)
+
+        it("fetches the archive named after the attachment key", function()
+            fake:on("GET", ZIP_URL, { body = Fixtures.raw("attachment.zip") })
+
+            ZoteroAPI.downloadAndGetPath("ATTACH01")
+
+            assert.is_equal("https://cloud.example.org/zotero/ATTACH01.zip", fake:urls()[1])
+        end)
+
+        it("unpacks the attachment out of the archive", function()
+            fake:on("GET", ZIP_URL, { body = Fixtures.raw("attachment.zip") })
+
+            local path, e = ZoteroAPI.downloadAndGetPath("ATTACH01")
+
+            assert.is_nil(e)
+            assert.is_equal(attachment_path, path)
+            assert.is_equal("%PDF-1.4 pretend", file_contents(path))
+            assert.is_equal("1201", file_contents(attachment_dir .. "/version"))
+        end)
+
+        it("deletes the archive once it is unpacked", function()
+            fake:on("GET", ZIP_URL, { body = Fixtures.raw("attachment.zip") })
+
+            ZoteroAPI.downloadAndGetPath("ATTACH01")
+
+            assert.is_nil(lfs.attributes(attachment_dir .. "/ATTACH01.zip"))
+        end)
+
+        it("reports an archive it cannot unpack", function()
+            fake:on("GET", ZIP_URL, { body = "this is not a zip file" })
+
+            local path, e = ZoteroAPI.downloadAndGetPath("ATTACH01")
+
+            assert.is_nil(path)
+            assert.is_equal("Unzipping failed", e)
+        end)
+
+        it("deletes the archive even when unpacking fails", function()
+            fake:on("GET", ZIP_URL, { body = "this is not a zip file" })
+
+            ZoteroAPI.downloadAndGetPath("ATTACH01")
+
+            assert.is_nil(lfs.attributes(attachment_dir .. "/ATTACH01.zip"))
+        end)
+
+        it("does not record a version when unpacking fails", function()
+            fake:on("GET", ZIP_URL, { body = "this is not a zip file" })
+
+            ZoteroAPI.downloadAndGetPath("ATTACH01")
+
+            assert.is_nil(file_contents(attachment_dir .. "/version"))
+        end)
+
+        it("propagates a failed download", function()
+            fake:on("GET", ZIP_URL, { code = 404, body = "" })
+
+            local path, e = ZoteroAPI.downloadAndGetPath("ATTACH01")
+
+            assert.is_nil(path)
+            assert.is_equal("Download failed with status code 404", e)
+        end)
+
+        it("reports a missing WebDAV url", function()
+            ZoteroAPI.getSettings():delSetting("webdav_url")
+
+            local path, e = ZoteroAPI.downloadAndGetPath("ATTACH01")
+
+            assert.is_nil(path)
+            assert.is_equal("WebDAV url not set", e)
+            assert.is_equal(0, fake:callCount())
+        end)
+
+        it("sends basic auth built from the stored credentials", function()
+            fake:on("GET", ZIP_URL, { body = Fixtures.raw("attachment.zip") })
+
+            ZoteroAPI.downloadAndGetPath("ATTACH01")
+
+            local sha2 = require("ffi/sha2")
+            assert.is_equal(
+                "Basic " .. sha2.bin_to_base64("lucas:hunter2"),
+                fake.calls[1].headers["Authorization"]
+            )
+        end)
+    end)
+
     describe("checkWebDAV", function()
         it("reports a missing URL", function()
             assert.is_equal("No WebDAV URL provided", ZoteroAPI.checkWebDAV())

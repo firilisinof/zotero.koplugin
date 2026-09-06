@@ -1,11 +1,43 @@
 local Menu = require("ui/widget/menu")
+local Row = require("zoterorow")
+local Size = require("ui/size")
 local _ = require("gettext")
 
 local Browser = Menu:extend{
     no_title = false, is_borderless = true, is_popout = false,
     title_bar_left_icon = "appbar.search", covers_full_screen = true,
     return_arrow_propagation = false,
+    single_line = true, linesize = Size.line.thin,
 }
+
+--- Treat the page preference as a maximum so metadata never overlaps. Example: browser:_recalculateDimen().
+---@param no_recalculate_dimen boolean|nil
+function Browser:_recalculateDimen(no_recalculate_dimen)
+    local page = self.page
+    Menu._recalculateDimen(self, no_recalculate_dimen)
+    self.font_size = math.max(14, self.font_size)
+    local info_size = math.max(10, math.min(self.font_size - 2, self.items_mandatory_font_size or math.floor(self.font_size * 0.8)))
+    self.row_metrics = Row.metrics(self.font_size, info_size)
+    -- Only shrink when even one complete row cannot fit, e.g. a short landscape screen.
+    while self.row_metrics.min_height + self.linesize > self.available_height and self.font_size > 1 do
+        self.font_size, info_size = self.font_size - 1, math.max(1, info_size - 1)
+        self.row_metrics = Row.metrics(self.font_size, info_size)
+    end
+    local capacity = math.max(1, math.floor(self.available_height / (self.row_metrics.min_height + self.linesize)))
+    self.perpage = math.min(self.perpage, capacity)
+    self.item_dimen.h = math.floor(self.available_height / self.perpage)
+    for _, entry in ipairs(self.item_table) do entry.shortcut_icon_width = self.row_metrics.title_line_height end
+    self.page_num = self:getPageNumber(#self.item_table)
+    self.page = math.min(page, self.page_num)
+end
+
+--- Keep native menu pagination and input while rendering separate fields. Example: browser:updateItems(1).
+---@param select_number number|nil
+---@param no_recalculate_dimen boolean|nil
+function Browser:updateItems(select_number, no_recalculate_dimen)
+    Menu.updateItems(self, select_number, no_recalculate_dimen)
+    for _, item in ipairs(self.item_group) do Row.decorate(item, self.row_metrics) end
+end
 
 --- Initialize navigation once per browser. Example: browser:init().
 function Browser:init()
@@ -81,8 +113,8 @@ end
 ---@param empty_text string
 function Browser:setItems(items, empty_text)
     if #items == 0 then table.insert(items, { text = empty_text, is_label = true }) end
-    for _index, item in ipairs(items) do
-        if item.downloaded then item.text = _("[Downloaded]") .. " " .. item.text end
+    for _, item in ipairs(items) do
+        if item.collection or item.wildcard_collection then item.bold = true end
     end
     self:switchItemTable(_("Zotero"), items)
 end

@@ -118,6 +118,57 @@ step("14-offline-browser", function()
     assert(api.displaySearchResults("attention")[1].downloaded)
 end)
 
+step("15-metadata-collection", function()
+    local items = api.getItems()
+    items.LINKED01.data.collections = { "COLLAAA1" }
+    items.LONGP = { key = "LONGP", version = 1, meta = { creatorSummary = "Chen et al.", parsedDate = "2024-01-01" },
+        data = { itemType = "journalArticle", collections = { "COLLAAA1" },
+            title = "Understanding long publication titles on electronic paper displays: metadata, readability, and accessible navigation across very large research libraries" } }
+    api.setItems(items)
+    env:attachment("LONGFILE", "LONGP", "long-title.pdf")
+    env:attachment("ORPHAN", "MISSING", "orphan-report.pdf")
+    items = api.getItems()
+    items.ORPHAN.data.title = ""
+    items.PARENT02.data.collections = { "COLLAAA1", "COLLCCC3" }
+    items.PARENT02.meta.creatorSummary = nil
+    items.PARENT02.meta.parsedDate = "2008"
+    api.setItems(items)
+    browser.is_enable_shortcut = false
+    browser:displayCollection("COLLAAA1")
+    assert(browser.item_group[1].entry.collection)
+    assert(browser.item_group[2].metadata_widgets.status.text == "Unavailable")
+    assert(browser.item_group[3].metadata_widgets.status.text == "Downloaded")
+end)
+step("16-metadata-search", function()
+    browser:displaySearchResults("")
+    assert(api.displaySearchResults("orphan-report.pdf")[1].title == "orphan-report.pdf")
+    local long_title = browser.item_group[3].metadata_widgets.title
+    assert(long_title.line_with_ellipsis == 2)
+    assert(browser.item_group:getSize().h <= browser.available_height)
+end)
+step("17-metadata-large-font", function()
+    browser.items_font_size = 36
+    browser:displayCollection("COLLAAA1")
+    assert(browser.page_num > 1)
+    assert(browser.item_group:getSize().h <= browser.available_height)
+end)
+step("18-metadata-large-search", function()
+    browser:displaySearchResults("")
+    assert(browser.page_num > 1)
+    assert(browser.item_group:getSize().h <= browser.available_height)
+end)
+step("19-metadata-next-page", function()
+    browser:onNextPage()
+    assert(browser.page == 2)
+    assert(browser.item_group[1].idx == browser.perpage + 1)
+end)
+step("20-metadata-collections", function()
+    browser.items_font_size = nil
+    browser:displayCollection(nil)
+    assert(browser.item_group[1].entry.wildcard_collection)
+    assert(browser.item_group[2].entry.collection)
+end)
+
 local index, finished = 0, false
 local function advance()
     index = index + 1

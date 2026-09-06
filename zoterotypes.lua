@@ -8,6 +8,11 @@
 ---@class ZoteroRow
 ---@field key string
 ---@field text string
+---@field title string|nil Publication or attachment title, falling back to the filename
+---@field author string|nil
+---@field year string|nil
+---@field file_format 'PDF'|'EPUB'|nil
+---@field downloadable boolean|nil
 ---@field haystack string|nil
 ---@field collection boolean|nil
 ---@field downloaded boolean|nil

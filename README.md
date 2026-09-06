@@ -42,7 +42,9 @@ Switching the active library clears its cached metadata and last-sync timestamp.
 
 Hold a collection row and choose “Download collection”. This downloads direct members only, excluding subcollections and respecting the current tag filter. Files already current are skipped. Tap the progress message to cancel. The final summary includes individual failures, and retrying skips successful downloads.
 
-`[Downloaded]` means a local file exists. It does not necessarily mean that its version matches the latest metadata. Unsupported linked files remain visible but cannot be downloaded.
+Collection and search rows show a publication title on up to two lines, with available author and year below. Standalone and orphaned attachments use their own title or filename. Format and download status appear on the right. “Downloaded” means a local file exists, while “Not downloaded” means it is absent. Presence does not necessarily mean that its version matches the latest metadata. Unsupported linked files remain visible as “Unavailable” until a local file exists.
+
+The items-per-page preference is a maximum. The browser reduces page capacity when needed to fit the active font size and prevent rows from overlapping.
 
 Hold an attachment row to open “Show Zotero notes”. Notes are read from the last sync and displayed as plain text. Images, rich formatting, standalone notes and annotations are not included.
 

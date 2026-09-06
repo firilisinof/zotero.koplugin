@@ -21,6 +21,19 @@ function Download.getDirAndPath(api, key)
     return directory, directory .. "/" .. fields.filename
 end
 
+--- Find an existing readable copy without checking credentials or versions. Example: API.getLocalAttachmentPath("ATTACH01").
+---@param api ZoteroAPI
+---@param key string
+---@return string|nil
+function Download.getLocalAttachmentPath(api, key)
+    local item = api.getItems()[key]
+    local fields = item and item.data
+    if not fields or fields.itemType ~= "attachment" then return nil end
+    if fields.contentType ~= "application/pdf" and fields.contentType ~= "application/epub+zip" then return nil end
+    local _, path = api.getDirAndPath(key)
+    return api.util.isFile(path) and path or nil
+end
+
 ---@param api ZoteroAPI
 ---@param key string
 ---@return boolean

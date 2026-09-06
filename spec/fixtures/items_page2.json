@@ -1,0 +1,104 @@
+[
+    {
+        "key": "PARENT02",
+        "version": 1210,
+        "library": { "type": "user", "id": 4242, "name": "spec" },
+        "meta": { "creatorSummary": "Petzold", "parsedDate": "2008", "numChildren": 1 },
+        "data": {
+            "key": "PARENT02",
+            "version": 1210,
+            "itemType": "book",
+            "title": "The Annotated Turing",
+            "creators": [
+                { "creatorType": "author", "firstName": "Charles", "lastName": "Petzold" }
+            ],
+            "date": "2008",
+            "collections": ["COLLCCC3"],
+            "tags": [],
+            "relations": {},
+            "dateAdded": "2024-02-01T09:00:00Z",
+            "dateModified": "2024-02-01T09:00:00Z"
+        }
+    },
+    {
+        "key": "ATTACH02",
+        "version": 1211,
+        "library": { "type": "user", "id": 4242, "name": "spec" },
+        "meta": {},
+        "data": {
+            "key": "ATTACH02",
+            "version": 1211,
+            "parentItem": "PARENT02",
+            "itemType": "attachment",
+            "linkMode": "imported_file",
+            "title": "EPUB",
+            "contentType": "application/epub+zip",
+            "filename": "the-annotated-turing.epub",
+            "md5": "ad0234829205b9033196ba818f7a872b",
+            "mtime": 1706778000000,
+            "tags": [],
+            "relations": {},
+            "dateAdded": "2024-02-01T09:00:00Z",
+            "dateModified": "2024-02-01T09:00:00Z"
+        }
+    },
+    {
+        "key": "LINKED01",
+        "version": 1212,
+        "library": { "type": "user", "id": 4242, "name": "spec" },
+        "meta": {},
+        "data": {
+            "key": "LINKED01",
+            "version": 1212,
+            "itemType": "attachment",
+            "linkMode": "linked_file",
+            "title": "A Linked Paper",
+            "contentType": "application/pdf",
+            "path": "attachments:linked-paper.pdf",
+            "filename": "linked-paper.pdf",
+            "collections": ["COLLCCC3"],
+            "tags": [],
+            "relations": {},
+            "dateAdded": "2024-02-01T09:00:00Z",
+            "dateModified": "2024-02-01T09:00:00Z"
+        }
+    },
+    {
+        "key": "EMBEDIMG",
+        "version": 1213,
+        "library": { "type": "user", "id": 4242, "name": "spec" },
+        "meta": {},
+        "data": {
+            "key": "EMBEDIMG",
+            "version": 1213,
+            "parentItem": "NOTE0001",
+            "itemType": "attachment",
+            "linkMode": "embedded_image",
+            "title": "Figure 1",
+            "contentType": "image/png",
+            "filename": "figure-1.png",
+            "tags": [],
+            "relations": {},
+            "dateAdded": "2024-02-01T09:00:00Z",
+            "dateModified": "2024-02-01T09:00:00Z"
+        }
+    },
+    {
+        "key": "DELETED1",
+        "version": 1214,
+        "library": { "type": "user", "id": 4242, "name": "spec" },
+        "meta": {},
+        "data": {
+            "key": "DELETED1",
+            "version": 1214,
+            "itemType": "journalArticle",
+            "title": "Retracted Preprint",
+            "deleted": 1,
+            "collections": ["COLLAAA1"],
+            "tags": [],
+            "relations": {},
+            "dateAdded": "2024-02-01T09:00:00Z",
+            "dateModified": "2024-02-01T09:00:00Z"
+        }
+    }
+]

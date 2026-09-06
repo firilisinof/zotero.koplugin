@@ -703,6 +703,43 @@ describe("Zotero API client", function()
             assert.is_nil(path)
             assert.is_equal("Error: API responded with status code 404", e)
         end)
+
+        it("keeps the existing local copy when a re-download fails", function()
+            fake:on("GET", "/items/ATTACH01/file", { body = "%PDF-1.4 pretend" })
+            local path = ZoteroAPI.downloadAndGetPath("ATTACH01")
+
+            -- The server now has a newer version but is answering with an
+            -- error page rather than the file.
+            ZoteroAPI.getItems()["ATTACH01"].version = 1300
+            fake.routes = {}
+            fake:on("GET", "/items/ATTACH01/file", {
+                code = 500,
+                body = "<html>500 Internal Server Error</html>",
+            })
+
+            local retry, e = ZoteroAPI.downloadAndGetPath("ATTACH01")
+
+            assert.is_nil(retry)
+            assert.is_equal("Error: API responded with status code 500", e)
+            assert.is_equal("%PDF-1.4 pretend", file_contents(path))
+        end)
+
+        it("leaves no partial file behind after a failed download", function()
+            fake:on("GET", "/items/ATTACH01/file", { code = 500, body = "boom" })
+
+            local _, dir_path = ZoteroAPI.getDirAndPath("ATTACH01")
+            ZoteroAPI.downloadAndGetPath("ATTACH01")
+
+            assert.is_nil(lfs.attributes(dir_path .. ".part"))
+        end)
+
+        it("does not record a version when the download fails", function()
+            fake:on("GET", "/items/ATTACH01/file", { code = 500, body = "boom" })
+
+            ZoteroAPI.downloadAndGetPath("ATTACH01")
+
+            assert.is_nil(file_contents(ZoteroAPI.storage_dir .. "/PARENT01/version"))
+        end)
     end)
 
     describe("downloadAndGetPath over WebDAV", function()

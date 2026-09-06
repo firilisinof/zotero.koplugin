@@ -255,27 +255,6 @@ function API.verifyResponse(r, c)
     return nil
 end
 
-function API.fetchCollectionSize(collection_url, headers)
-    print("Determining size of '" .. collection_url .. "'")
-    socketutil:set_timeout(socketutil.LARGE_BLOCK_TIMEOUT, socketutil.LARGE_TOTAL_TIMEOUT)
-    local r, c, h = API.http.request {
-        method = "HEAD",
-        url = collection_url,
-        headers = headers
-    }
-    socketutil:reset_timeout()
-
-    local e = API.verifyResponse(r, c)
-    if e ~= nil then return nil, e end
-
-    local total_results = tonumber(h["total-results"])
-    if total_results == nil or total_results < 0 then
-        return nil, "Error: could not determine number of items in library"
-    end
-
-    return tonumber(total_results)
-end
-
 -- Fetches a paginated URL collection.
 --
 -- If no callback is given, it returns an array containing all entries of the collection.
@@ -285,18 +264,18 @@ end
 --
 -- If an error occurs, the function will return nil and the error message as second parameter.
 function API.fetchCollectionPaginated(collection_url, headers, callback)
-    -- Try to determine the size
-    local collection_size, e = API.fetchCollectionSize(collection_url, headers)
-    if e ~= nil then return nil, e end
-
-    print(("Fetching %s items."):format(collection_size))
-    -- The API returns the results in pages with 100 entries each, loop accordingly.
+    -- The API returns the results in pages with 100 entries each. Every page
+    -- also carries the collection size and the library version, so there is no
+    -- need for a separate HEAD request to size the collection first.
     local items = {}
-    local library_version = 0
+    local library_version = nil
     local step_size = 100
-    for item_nr = 0, collection_size, step_size do
-        local page_url = ("%s&limit=%i&start=%i"):format(collection_url, step_size, item_nr)
-        print("Fetching page ", item_nr, page_url)
+    local start = 0
+    local total = 0
+
+    repeat
+        local page_url = ("%s&limit=%i&start=%i"):format(collection_url, step_size, start)
+        print("Fetching page ", start, page_url)
 
         local page_data = {}
         socketutil:set_timeout(socketutil.LARGE_BLOCK_TIMEOUT, socketutil.LARGE_TOTAL_TIMEOUT)
@@ -308,10 +287,16 @@ function API.fetchCollectionPaginated(collection_url, headers, callback)
         }
         socketutil:reset_timeout()
 
-        library_version = h["last-modified-version"]
-
+        -- Check the response before touching the headers, which are absent
+        -- entirely when the request never reached the server.
         local e = API.verifyResponse(r, c)
         if e ~= nil then return nil, e end
+
+        library_version = h["last-modified-version"]
+        total = tonumber(h["total-results"])
+        if total == nil or total < 0 then
+            return nil, "Error: could not determine number of items in library"
+        end
 
         local content = table.concat(page_data, "")
         local ok, result = pcall(JSON.decode, content)
@@ -325,14 +310,15 @@ function API.fetchCollectionPaginated(collection_url, headers, callback)
             -- add items to the list we return in the end
             table.move(result, 1, #result, #items + 1, items)
         end
-    end
+
+        start = start + step_size
+    until start >= total
 
     if callback then
         return library_version, nil
     else
         return items, nil
     end
-
 end
 
 function API.ensureKeyAndID()

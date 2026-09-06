@@ -153,23 +153,23 @@ function API.checkWebDAV()
         return "No WebDAV URL provided"
     end
 
-    local user = API.getWebDAVUser()
-    local pass = API.getWebDAVPassword()
-    local headers = API.getWebDAVHeaders()
-
-    local b, c, h = API.http.request {
+    local r, c = API.http.request {
         url = url,
         method = "PROPFIND",
-        headers = headers
+        headers = API.getWebDAVHeaders()
     }
 
-    if c == 200 or c == 207 then
+    if r ~= 1 then
+        return "Could not reach the server: " .. tostring(c)
+    elseif c == 200 or c == 207 then
         return nil
-    elseif c == 400 or c == 401 then
+    elseif c == 400 or c == 401 or c == 403 then
         return "Reached server, but access forbidden. Check username and password."
+    elseif c == 404 then
+        return "Reached server, but the folder was not found. Check the WebDAV URL."
+    else
+        return "Unexpected response from server: status code " .. tostring(c)
     end
-
-
 end
 
 -- List of zotero items that need to be synced to the server.  Items that are

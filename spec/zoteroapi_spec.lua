@@ -862,6 +862,33 @@ describe("Zotero API client", function()
             )
         end)
 
+        it("reports a URL that points at nothing", function()
+            ZoteroAPI.setWebDAVUrl("https://cloud.example.org/zotero")
+            fake:on("PROPFIND", "/zotero", { code = 404, headers = {} })
+
+            assert.is_equal(
+                "Reached server, but the folder was not found. Check the WebDAV URL.",
+                ZoteroAPI.checkWebDAV()
+            )
+        end)
+
+        it("reports any other status rather than claiming success", function()
+            ZoteroAPI.setWebDAVUrl("https://cloud.example.org/zotero")
+            fake:on("PROPFIND", "/zotero", { code = 500, headers = {} })
+
+            assert.is_equal(
+                "Unexpected response from server: status code 500",
+                ZoteroAPI.checkWebDAV()
+            )
+        end)
+
+        it("reports a server it cannot reach", function()
+            ZoteroAPI.setWebDAVUrl("https://cloud.example.org/zotero")
+            fake:on("PROPFIND", "/zotero", { error = "host not found" })
+
+            assert.is_equal("Could not reach the server: host not found", ZoteroAPI.checkWebDAV())
+        end)
+
         it("sends basic auth built from the stored credentials", function()
             ZoteroAPI.setWebDAVUrl("https://cloud.example.org/zotero")
             ZoteroAPI.setWebDAVUser("lucas")

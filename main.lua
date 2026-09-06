@@ -66,7 +66,7 @@ end
 --- Browse cached metadata immediately. Example: plugin:onZoteroOpenAction().
 function Plugin:onZoteroOpenAction()
     if not self:checkInitialized() then return end
-    self.browser:resetLibrary()
+    self.browser:restoreLibrary()
     self.runtime:show(self.zotero_dialog)
     self:maybeAutoSync("open")
 end

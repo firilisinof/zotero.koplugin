@@ -31,10 +31,17 @@ function Settings.getLibraryPrefix(api)
     return (api.getLibraryType() == "group" and "groups/" or "users/") .. tostring(identifier)
 end
 
+--- Retain cache ownership when credentials are removed. Example: API.getLocalLibraryPrefix().
+---@param api ZoteroAPI
+---@return string|nil
+function Settings.getLocalLibraryPrefix(api)
+    return api.getLibraryPrefix() or read(api, "cache_library")
+end
+
 --- Reconcile manually edited settings and isolate storage. Example: API.reconcileLibrary().
 ---@param api ZoteroAPI
 function Settings.reconcileLibrary(api)
-    local prefix = api.getLibraryPrefix()
+    local prefix = api.getLocalLibraryPrefix()
     local previous = read(api, "cache_library")
     local legacy = read(api, "legacy_storage_library")
     if prefix and not previous and not legacy and api.getLibraryType() == "user" then

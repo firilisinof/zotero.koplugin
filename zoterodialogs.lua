@@ -43,7 +43,7 @@ local function editAccount(plugin, library_type)
         local previous = api.getLibraryPrefix()
         local err = api.setAccount(library_type, values[1], values[2])
         if err then return err end
-        if previous ~= api.getLibraryPrefix() and plugin.browser then plugin.browser:resetLibrary() end
+        if previous ~= api.getLibraryPrefix() and plugin.browser then plugin.browser:restoreLibrary() end
     end)
 end
 

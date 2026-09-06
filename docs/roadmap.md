@@ -13,6 +13,8 @@ The six cheap wins are implemented. The plugin remains read-only and needs no ne
 
 ## Download and cache compatibility
 
+Local reading opens existing PDF and EPUB copies directly without credentials or network access, even when stale or missing a version marker. Explicit downloads retain their update behavior. “On device” lists only present attachments in the active library's filtered metadata cache and keeps searches local. Browser views, pages and back history persist separately for each personal or group library. Clearing credentials retains cache ownership and document paths.
+
 Files still live under their original parent directory, preserving KOReader sidecars and history paths. Version markers are now per attachment, named `.zotero-<attachmentKey>.version`. An old parent-level `version` marker is trusted only when exactly one readable attachment belongs to that directory. Ambiguous old markers cause a fresh download.
 
 Direct transfers and WebDAV extraction write staging files before replacing the attachment. Failed transfers or extraction retain the previous file. A cancelled worker may leave a staging file or archive, which the next attempt overwrites. Metadata resets never remove downloads or sidecars.

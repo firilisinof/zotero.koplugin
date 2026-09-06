@@ -43,14 +43,17 @@ end
 function Browser:init()
     Menu.init(self)
     self.paths = {}
-    self.current_view = { kind = "collection" }
+    self.current_view = { kind = "collection", page = 1 }
 end
 
----@param view table
+--- Remember each source page before entering another view. Example: browser:navigate{ kind = "device" }.
+---@param view ZoteroBrowserView
 function Browser:navigate(view)
+    self:savePosition()
     table.insert(self.paths, self.current_view)
     self.current_view = view
     self:refresh()
+    self:savePosition()
 end
 
 --- Return to the actual previous collection or query. Example: browser:onReturn().
@@ -58,20 +61,22 @@ end
 function Browser:onReturn()
     self.current_view = table.remove(self.paths) or { kind = "collection" }
     self:refresh()
+    self:savePosition()
     return true
 end
 
 --- Offer a search without changing history on cancel. Example: browser:onLeftButtonTap().
 function Browser:onLeftButtonTap()
+    local on_device = self.current_view.kind == "device"
     local dialog
     dialog = self.runtime.InputDialog:new{
-        title = _("Search Zotero titles"), input = "",
+        title = on_device and _("Search on device") or _("Search Zotero titles"), input = "",
         description = _("Search title, first author and DOI within the active tag filter."),
         buttons = { {
             { text = _("Cancel"), id = "close", callback = function() self.runtime:close(dialog) end },
             { text = _("Search"), is_enter_default = true, callback = function()
                 self.runtime:close(dialog)
-                self:navigate{ kind = "search", query = dialog:getInputText() }
+                self:navigate{ kind = on_device and "device" or "search", query = dialog:getInputText() }
             end },
         } },
     }
@@ -82,30 +87,77 @@ end
 --- Refresh the active view after sync, filtering or download. Example: browser:refresh().
 function Browser:refresh()
     local view = self.current_view or { kind = "collection" }
-    if view.kind == "search" then self:displaySearchResults(view.query) return end
-    self:displayCollection(view.key)
+    -- Account changes clear metadata. Keep the saved destination until its cache returns.
+    self.waiting_for_cache = next(self.api.getItems()) == nil and next(self.api.getCollections()) == nil
+        and self.api.getLastSync() == 0
+    while not self.waiting_for_cache and view.kind == "collection" and view.key
+        and not self.api.getCollections()[view.key] do
+        view = table.remove(self.paths) or { kind = "collection" }
+    end
+    if view.kind == "search" then self:displaySearchResults(view.query, view.page) return end
+    if view.kind == "device" then self:displayOnDevice(view.query, view.page) return end
+    self:displayCollection(view.key, view.page)
 end
 
---- Reset navigation when the selected library changes. Example: browser:resetLibrary().
-function Browser:resetLibrary()
-    self.paths = {}
-    self.current_view = { kind = "collection" }
+--- Reopen the last view for the selected library. Example: browser:restoreLibrary().
+function Browser:restoreLibrary()
+    local library = self.api.getLocalLibraryPrefix() or "local"
+    -- File manager and reader own separate plugin instances. Load the latest saved view.
+    local position = self.api.getBrowserPosition(library)
+    self.current_view, self.paths = position.view, position.paths
+    self.position_library = library
     self:refresh()
+end
+
+--- Persist the current page and back history without touching attachments. Example: browser:savePosition().
+function Browser:savePosition()
+    if not self.current_view or not self.position_library then return end
+    if not self.waiting_for_cache then self.current_view.page = self.page or 1 end
+    self.api.saveBrowserPosition(self.position_library, { view = self.current_view, paths = self.paths })
+end
+
+--- Save native page turns, including swipes and page jumps. Example: browser:onGotoPage(2).
+---@param page integer
+---@return boolean
+function Browser:onGotoPage(page)
+    Menu.onGotoPage(self, page)
+    self:savePosition()
+    return true
+end
+
+--- Save before the menu closes or returns to the file manager. Example: browser:onCloseAllMenus().
+---@return boolean
+function Browser:onCloseAllMenus()
+    self:savePosition()
+    return Menu.onCloseAllMenus(self)
 end
 
 --- Display cached search results. Example: browser:displaySearchResults("attention").
 ---@param query string
-function Browser:displaySearchResults(query)
-    self.current_view = { kind = "search", query = query }
+---@param page integer|nil
+function Browser:displaySearchResults(query, page)
+    self.current_view = { kind = "search", query = query, page = page or 1 }
     self:setItems(self.api.displaySearchResults(query), _("No Results"))
+end
+
+--- Browse local copies, including a search limited to this view. Example: browser:displayOnDevice("").
+---@param query string|nil
+---@param page integer|nil
+function Browser:displayOnDevice(query, page)
+    self.current_view = { kind = "device", query = query or "", page = page or 1 }
+    self:setItems(self.api.displayOnDevice(query), _("No local files match the current filters."))
 end
 
 --- Display direct collection members. Example: browser:displayCollection("COLLAAA1").
 ---@param key string|nil
-function Browser:displayCollection(key)
-    self.current_view = { kind = "collection", key = key }
+---@param page integer|nil
+function Browser:displayCollection(key, page)
+    self.current_view = { kind = "collection", key = key, page = page or 1 }
     local items = self.api.displayCollection(key)
-    if key == nil then table.insert(items, 1, { text = _("All Items"), wildcard_collection = true }) end
+    if key == nil then
+        table.insert(items, 1, { text = _("All Items"), wildcard_collection = true })
+        table.insert(items, 2, { text = _("On device"), on_device = true })
+    end
     self:setItems(items, _("No Items"))
 end
 
@@ -114,9 +166,13 @@ end
 function Browser:setItems(items, empty_text)
     if #items == 0 then table.insert(items, { text = empty_text, is_label = true }) end
     for _, item in ipairs(items) do
-        if item.collection or item.wildcard_collection then item.bold = true end
+        if item.collection or item.wildcard_collection or item.on_device then item.bold = true end
     end
-    self:switchItemTable(_("Zotero"), items)
+    self.position_library = self.position_library or self.api.getLocalLibraryPrefix() or "local"
+    self.page = self.current_view.page or 1
+    local title = self.current_view.kind == "device" and _("Zotero - On device") or _("Zotero")
+    self:switchItemTable(title, items, -1)
+    if not self.waiting_for_cache then self.current_view.page = self.page end
 end
 
 --- Handle row selection. Example: browser:onMenuSelect(row).
@@ -124,8 +180,19 @@ end
 function Browser:onMenuSelect(item)
     if item.collection then self:navigate{ kind = "collection", key = item.key } return end
     if item.wildcard_collection then self:navigate{ kind = "search", query = "" } return end
+    if item.on_device then self:navigate{ kind = "device" } return end
     if item.is_label then return end
+    local path = self.api.getLocalAttachmentPath(item.key)
+    if path then self:openAttachment(path) return end
     self:startDownload(function() return self:downloadItem(item) end)
+end
+
+--- Open the exact existing document path so KOReader retains its sidecars. Example: browser:openAttachment(path).
+---@param path string
+function Browser:openAttachment(path)
+    self:savePosition()
+    self.close_callback()
+    self.runtime:openReader(path)
 end
 
 --- Offer row-specific actions. Example: browser:onMenuHold(row).
@@ -171,7 +238,7 @@ function Browser:startDownload(task)
         self.api.endOperation()
         self:refresh()
         if not ok then self.runtime:message(tostring(path), 5) return end
-        if path then self.close_callback() self.runtime:openReader(path) end
+        if path then self:openAttachment(path) end
     end)
 end
 

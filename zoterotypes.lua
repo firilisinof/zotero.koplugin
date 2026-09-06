@@ -16,6 +16,17 @@
 ---@field haystack string|nil
 ---@field collection boolean|nil
 ---@field downloaded boolean|nil
+---@field on_device boolean|nil
+
+---@class ZoteroBrowserView
+---@field kind 'collection'|'search'|'device'
+---@field key string|nil
+---@field query string|nil
+---@field page integer|nil
+
+---@class ZoteroBrowserPosition
+---@field view ZoteroBrowserView
+---@field paths ZoteroBrowserView[]
 
 ---@class ZoteroIndex
 ---@field by_collection table<string, ZoteroRow[]>

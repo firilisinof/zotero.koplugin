@@ -16,6 +16,7 @@ local function bind(module)
 end
 
 bind(require("zoterosettings"))
+bind(require("zoteroposition"))
 bind(require("zoterotransport"))
 bind(require("zoteroindex"))
 bind(require("zoterodownload"))

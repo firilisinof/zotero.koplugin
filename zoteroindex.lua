@@ -134,10 +134,9 @@ end
 ---@return ZoteroRow
 local function displayRow(api, entry)
     -- File presence changes independently of metadata, including in subprocesses.
-    local _, path = api.getDirAndPath(entry.key)
     local row = copyRow(entry)
     row.haystack = nil
-    row.downloaded = api.util.isFile(path)
+    row.downloaded = api.getLocalAttachmentPath(entry.key) ~= nil
     return row
 end
 
@@ -193,6 +192,18 @@ function Index.displaySearchResults(api, query)
     local result = {}
     for _, entry in ipairs(api.getIndex().searchable) do
         if string.match(entry.haystack, pattern) then table.insert(result, displayRow(api, entry)) end
+    end
+    return result
+end
+
+--- List present attachments in the active library and tag filter. Example: API.displayOnDevice("").
+---@param api ZoteroAPI
+---@param query string|nil
+---@return ZoteroRow[]
+function Index.displayOnDevice(api, query)
+    local result = {}
+    for _, row in ipairs(api.displaySearchResults(query or "")) do
+        if row.downloaded then table.insert(result, row) end
     end
     return result
 end

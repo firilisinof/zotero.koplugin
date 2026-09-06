@@ -126,8 +126,7 @@ Attachment rows also carry `title`, `author`, `year`, `file_format` and `downloa
 - An attachment whose `parentItem` is not in the library is hidden from collection
   browsing but still findable by search under its own title. This is odd, and specs
   pin it, so change it deliberately rather than by accident.
-- `linked_file` attachments are listed but cannot be opened, since Zotero does not
-  serve them. `downloadAndGetPath` returns an explanatory error.
+- `linked_file` attachments open when a copy already exists at the resolved local path. Zotero does not serve linked files, so `downloadAndGetPath` still returns an explanatory error for them.
 - `API.downloadWebDAV` unpacks through KOReader's `ffi/archiver` (libarchive) rather
   than shelling out. It extracts the archive's first file entry to the filename
   Zotero recorded, so an entry spelled differently still lands where the UI looks.
@@ -144,6 +143,9 @@ Attachment rows also carry `title`, `author`, `year`, `file_format` and `downloa
 - Missing `library_type` means a personal library. `user_id` remains compatible, and groups use `group_id`. Every Zotero URL uses `API.getLibraryPrefix()`.
 - `cache_library` identifies the metadata cache owner. `legacy_storage_library` preserves the original personal library's unnamespaced storage paths. Other libraries use `storage/users/<id>` or `storage/groups/<id>`.
 - Account changes reset metadata and last-sync time, preserving downloaded documents and sidecars. WebDAV preferences remain saved but are inactive for groups.
+- Removing credentials retains the recorded cache owner and storage namespace. `getLocalAttachmentPath` checks real file presence without credentials, HTTP, version checks or writes.
+- Selecting a present PDF or EPUB opens it directly, including stale and linked copies. Explicit collection downloads still update stale attachments. “On device” lists present attachments from the active filtered index, with search scoped to local copies.
+- `zoteroposition.lua` stores browser views, pages and back history in `browser_positions`, keyed by library prefix. Browser reopening reloads the latest snapshot because the file manager and reader have separate plugin instances. Empty caches after switching libraries defer destination validation until metadata returns.
 - Versions belong to individual attachments in `.zotero-<key>.version`. A legacy parent-level marker is accepted only for a single readable attachment. Transfers and archive extraction are staged before replacing the document.
 - Collection downloads use one dismissible subprocess per stale attachment. The subprocess may write files but never changes UI or settings. The parent reports progress and failures and refreshes file-presence indicators.
 - `last_sync` is recorded only after full sync success. `sync_on_startup` and `sync_on_open` default to false. Automatic sync needs an existing connection and never prompts to enable Wi-Fi. Browser-open sync uses a fixed 24-hour threshold.

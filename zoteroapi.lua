@@ -3,6 +3,7 @@ local LuaSettings = require("luasettings")
 local http = require("socket.http")
 local ltn12 = require("ltn12")
 local https = require("ssl.https")
+local socketutil = require("socketutil")
 local JSON = require("json")
 local lfs = require("libs/libkoreader-lfs")
 local DocSettings = require("docsettings")
@@ -153,11 +154,13 @@ function API.checkWebDAV()
         return "No WebDAV URL provided"
     end
 
+    socketutil:set_timeout(socketutil.LARGE_BLOCK_TIMEOUT, socketutil.LARGE_TOTAL_TIMEOUT)
     local r, c = API.http.request {
         url = url,
         method = "PROPFIND",
         headers = API.getWebDAVHeaders()
     }
+    socketutil:reset_timeout()
 
     if r ~= 1 then
         return "Could not reach the server: " .. tostring(c)
@@ -254,11 +257,13 @@ end
 
 function API.fetchCollectionSize(collection_url, headers)
     print("Determining size of '" .. collection_url .. "'")
+    socketutil:set_timeout(socketutil.LARGE_BLOCK_TIMEOUT, socketutil.LARGE_TOTAL_TIMEOUT)
     local r, c, h = API.http.request {
         method = "HEAD",
         url = collection_url,
         headers = headers
     }
+    socketutil:reset_timeout()
 
     local e = API.verifyResponse(r, c)
     if e ~= nil then return nil, e end
@@ -294,12 +299,14 @@ function API.fetchCollectionPaginated(collection_url, headers, callback)
         print("Fetching page ", item_nr, page_url)
 
         local page_data = {}
+        socketutil:set_timeout(socketutil.LARGE_BLOCK_TIMEOUT, socketutil.LARGE_TOTAL_TIMEOUT)
         local r, c, h = API.http.request {
             method = "GET",
             url = page_url,
             headers = headers,
             sink = ltn12.sink.table(page_data)
         }
+        socketutil:reset_timeout()
 
         library_version = h["last-modified-version"]
 
@@ -499,12 +506,14 @@ function API.downloadAndGetPath(key, download_callback)
             return nil, "Error: could not open " .. partialPath .. " for writing: " .. tostring(ioErr)
         end
 
+        socketutil:set_timeout(socketutil.FILE_BLOCK_TIMEOUT, socketutil.FILE_TOTAL_TIMEOUT)
         local r, c, h = API.http.request {
             url = url,
             headers = API.getHeaders(api_key),
             redirect = true,
             sink = ltn12.sink.file(partialFile)
         }
+        socketutil:reset_timeout()
 
         local e = API.verifyResponse(r, c)
         if e ~= nil then
@@ -537,6 +546,7 @@ function API.downloadWebDAV(key, targetDir, targetPath)
     local headers = API.getWebDAVHeaders()
     local zipPath = targetDir .. "/" .. key .. ".zip"
     print("Fetching URL " .. url)
+    socketutil:set_timeout(socketutil.FILE_BLOCK_TIMEOUT, socketutil.FILE_TOTAL_TIMEOUT)
     local r, c, h = API.http.request {
         method = "GET",
         url = url,
@@ -544,6 +554,7 @@ function API.downloadWebDAV(key, targetDir, targetPath)
         redirect = true,
         sink = ltn12.sink.file(io.open(zipPath, "wb"))
     }
+    socketutil:reset_timeout()
 
     if c ~= 200 then
         return nil, "Download failed with status code " .. c

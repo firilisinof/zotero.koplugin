@@ -250,6 +250,43 @@ describe("Zotero API client", function()
         end)
     end)
 
+    describe("socket timeouts", function()
+        local socketutil = require("socketutil")
+
+        it("restores the default timeout after a request", function()
+            fake:on("HEAD", "/items", { headers = { ["total-results"] = "1" } })
+
+            ZoteroAPI.fetchCollectionSize("https://api.zotero.org/users/4242/items", {})
+
+            assert.is_equal(socketutil.DEFAULT_BLOCK_TIMEOUT, socketutil.block_timeout)
+        end)
+
+        it("restores the default timeout even when the request fails", function()
+            fake:on("HEAD", "/items", { error = "connection refused" })
+
+            ZoteroAPI.fetchCollectionSize("https://api.zotero.org/users/4242/items", {})
+
+            assert.is_equal(socketutil.DEFAULT_BLOCK_TIMEOUT, socketutil.block_timeout)
+        end)
+
+        it("bounds a download so a stalled server cannot hang the reader", function()
+            set_credentials()
+            load_library()
+            local seen
+            fake:on("GET", "/items/ATTACH01/file", { body = "x" })
+            local plain_request = fake.request
+            fake.request = function(reqt)
+                seen = socketutil.block_timeout
+                return plain_request(reqt)
+            end
+
+            ZoteroAPI.downloadAndGetPath("ATTACH01")
+
+            assert.is_equal(socketutil.FILE_BLOCK_TIMEOUT, seen)
+            assert.is_equal(socketutil.DEFAULT_BLOCK_TIMEOUT, socketutil.block_timeout)
+        end)
+    end)
+
     describe("fetchCollectionPaginated", function()
         local URL = "https://api.zotero.org/users/4242/items?since=0"
 

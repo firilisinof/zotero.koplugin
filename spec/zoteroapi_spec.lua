@@ -909,6 +909,46 @@ describe("Zotero API client", function()
             assert.is_nil(lfs.attributes(attachment_dir .. "/ATTACH01.zip"))
         end)
 
+        it("replaces a copy an earlier download left behind", function()
+            -- unzip stops to ask before replacing an existing file, and on a
+            -- reader nothing ever answers, so the app hangs.
+            fake:on("GET", ZIP_URL, { body = Fixtures.raw("attachment.zip") })
+            lfs.mkdir(attachment_dir)
+            local stale = io.open(attachment_path, "wb")
+            stale:write("STALE CONTENT")
+            stale:close()
+
+            local path, e = ZoteroAPI.downloadAndGetPath("ATTACH01")
+
+            assert.is_nil(e)
+            assert.is_equal("%PDF-1.4 pretend", file_contents(path))
+        end)
+
+        it("re-downloads over the old file when the server has a newer version", function()
+            fake:on("GET", ZIP_URL, { body = Fixtures.raw("attachment.zip") })
+            ZoteroAPI.downloadAndGetPath("ATTACH01")
+            ZoteroAPI.getItems()["ATTACH01"].version = 1300
+
+            local path, e = ZoteroAPI.downloadAndGetPath("ATTACH01")
+
+            assert.is_nil(e)
+            assert.is_equal("%PDF-1.4 pretend", file_contents(path))
+            assert.is_equal("1300", file_contents(attachment_dir .. "/version"))
+        end)
+
+        it("reports an archive that does not hold the expected filename", function()
+            fake:on("GET", ZIP_URL, { body = Fixtures.raw("attachment_misnamed.zip") })
+
+            local path, e = ZoteroAPI.downloadAndGetPath("ATTACH01")
+
+            assert.is_nil(path)
+            assert.is_equal(
+                "The archive did not contain a file named " ..
+                "'Vaswani et al. - 2017 - Attention Is All You Need.pdf'",
+                e
+            )
+        end)
+
         it("reports an archive it cannot unpack", function()
             fake:on("GET", ZIP_URL, { body = "this is not a zip file" })
 

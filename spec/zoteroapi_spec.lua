@@ -532,6 +532,52 @@ describe("Zotero API client", function()
         it("returns nothing when there is no match", function()
             assert.are.same({}, ZoteroAPI.displaySearchResults("nonexistent"))
         end)
+
+        it("matches a hyphenated term literally", function()
+            -- A hyphen is a Lua pattern quantifier, so an unescaped query for
+            -- "all-you" used to match nothing at all.
+            ZoteroAPI.setItems({
+                P = { key = "P", version = 1, meta = { creatorSummary = "Ben-Kiki" },
+                      data = { key = "P", itemType = "journalArticle",
+                               title = "Well-Known Text", DOI = "", collections = {} } },
+                A = { key = "A", version = 1, meta = {},
+                      data = { key = "A", itemType = "attachment", linkMode = "imported_file",
+                               contentType = "application/pdf", filename = "a.pdf",
+                               parentItem = "P" } },
+            })
+
+            assert.is_equal(1, #ZoteroAPI.displaySearchResults("ben-kiki"))
+            assert.is_equal(1, #ZoteroAPI.displaySearchResults("well-known"))
+            assert.is_equal(1, #ZoteroAPI.displaySearchResults("ben-kiki well-known"))
+            assert.is_equal(0, #ZoteroAPI.displaySearchResults("ben-kuki"))
+        end)
+
+        it("does not choke on other pattern characters", function()
+            for _, query in ipairs({ "50%", "c++", "(draft)", "a.b", "[note]", "what?", "x$" }) do
+                assert.has_no_error(function()
+                    ZoteroAPI.displaySearchResults(query)
+                end, "query: " .. query)
+            end
+        end)
+    end)
+
+    describe("buildSearchPattern", function()
+        it("escapes pattern characters", function()
+            assert.is_equal(".*ben%-kiki.*", ZoteroAPI.buildSearchPattern("Ben-Kiki"))
+            assert.is_equal(".*50%%.*", ZoteroAPI.buildSearchPattern("50%"))
+        end)
+
+        it("joins words with a gap", function()
+            assert.is_equal(".*one.*two.*", ZoteroAPI.buildSearchPattern("one two"))
+        end)
+
+        it("collapses runs of whitespace", function()
+            assert.is_equal(".*one.*two.*", ZoteroAPI.buildSearchPattern("  one   two  "))
+        end)
+
+        it("matches everything for an empty query", function()
+            assert.is_equal(".*.*", ZoteroAPI.buildSearchPattern(""))
+        end)
     end)
 
     describe("getDirAndPath", function()

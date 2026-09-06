@@ -610,9 +610,21 @@ function API.displayCollection(key)
     return joinTables(result, collectionItems)
 end
 
+-- Turns a user query into a Lua pattern that matches the words in order with
+-- anything in between. Every word is escaped, so a query containing pattern
+-- characters such as the hyphen in "Ben-Kiki" still matches literally.
+function API.buildSearchPattern(query)
+    local words = {}
+    for word in string.gmatch(string.lower(query), "%S+") do
+        table.insert(words, (word:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")))
+    end
+
+    return ".*" .. table.concat(words, ".*") .. ".*"
+end
+
 function API.displaySearchResults(query)
     print("displaySearchResults for " .. query)
-    local queryRegex = ".*" .. string.gsub(string.lower(query), " ", ".*") .. ".*"
+    local queryRegex = API.buildSearchPattern(query)
     print("Searching for " .. queryRegex)
     -- Careful: linear search. Can be optimized quite a bit!
     local items = API.getItems()

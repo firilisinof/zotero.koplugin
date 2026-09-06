@@ -75,6 +75,7 @@ function API.init(zotero_dir)
     -- init does not serve the old library.
     API.items = nil
     API.collections = nil
+    API.index = nil
     local settings_path = BaseUtil.joinPath(API.zotero_dir, "meta.lua")
     print(settings_path)
     API.settings = LuaSettings:open(settings_path)
@@ -194,6 +195,7 @@ end
 
 function API.setItems(items)
     API.items = items
+    API.index = nil
     local f = assert(io.open(BaseUtil.joinPath(API.zotero_dir, "items.json"), "w"))
     local content = JSON.encode(API.items)
     f:write(content)
@@ -232,6 +234,7 @@ end
 
 function API.setCollections(collections)
     API.collections = collections
+    API.index = nil
     local f = assert(io.open(BaseUtil.joinPath(API.zotero_dir, "collections.json"), "w"))
     local content = JSON.encode(API.collections)
     f:write(content)
@@ -557,6 +560,86 @@ function API.getWebDAVHeaders()
     }
 end
 
+local function nameFor(parent)
+    local author = (parent.meta ~= nil and parent.meta.creatorSummary) or "Unknown"
+    return author .. " - " .. tostring(parent.data.title)
+end
+
+-- Walks the library once and produces two lookups:
+--   by_collection[collectionKey] -> sorted list of readable attachments
+--   searchable                   -> sorted list with a pre-lowercased haystack
+--
+-- Both used to be rebuilt by scanning every item on every render.
+local function buildIndex()
+    local items = API.getItems()
+    local by_collection = {}
+    local searchable = {}
+
+    local function fileUnder(collections, entry)
+        if collections == nil then return end
+        for _, collection in pairs(collections) do
+            by_collection[collection] = by_collection[collection] or {}
+            table.insert(by_collection[collection], entry)
+        end
+    end
+
+    for key, item in pairs(items) do
+        local data = item.data
+        if data ~= nil and data.itemType == "attachment"
+            and table_contains(SUPPORTED_MEDIA_TYPES, data.contentType) then
+
+            local parent = nil
+            if data.parentItem ~= nil then
+                parent = items[data.parentItem]
+                if parent ~= nil and parent.data == nil then
+                    parent = nil
+                end
+            end
+
+            if parent ~= nil then
+                local name = nameFor(parent)
+                fileUnder(parent.data.collections, { key = key, text = name })
+
+                -- The search list also shows the DOI, the listing does not.
+                local searchName = name
+                local doi = parent.data.DOI
+                if doi ~= nil and doi ~= "" then
+                    searchName = searchName .. " - " .. doi
+                end
+                table.insert(searchable, {
+                    key = key, text = searchName, haystack = string.lower(searchName),
+                })
+            elseif data.title ~= nil then
+                -- Either a standalone attachment or one whose parent is not in
+                -- the library. Only the former is reachable by browsing.
+                if data.parentItem == nil then
+                    fileUnder(data.collections, { key = key, text = data.title })
+                end
+                table.insert(searchable, {
+                    key = key, text = data.title, haystack = string.lower(data.title),
+                })
+            end
+        end
+    end
+
+    local byText = function(a, b) return a.text < b.text end
+    for _, entries in pairs(by_collection) do
+        table.sort(entries, byText)
+    end
+    table.sort(searchable, byText)
+
+    return { by_collection = by_collection, searchable = searchable }
+end
+
+-- The index is rebuilt on demand and dropped whenever the library changes.
+function API.getIndex()
+    if API.index == nil then
+        API.index = buildIndex()
+    end
+
+    return API.index
+end
+
 -- Return a table of entries of a collection.
 --
 -- If key is nil, entries of the root collection will be given.
@@ -579,107 +662,55 @@ function API.displayCollection(key)
         end
     end
     -- Sort collections by name
-    local comparator = function(a,b)
-        return (a["text"] < b["text"])
-    end
-    table.sort(result, comparator)
+    table.sort(result, function(a, b) return (a["text"] < b["text"]) end)
 
-    -- Get list of items
-    -- Careful: linear search. Can be optimized quite a bit!
-    local items = API.getItems()
+    -- Items live in a collection, never at the root.
+    if key == nil then
+        return result
+    end
+
+    local entries = API.getIndex().by_collection[key]
+    if entries == nil then
+        return result
+    end
+
+    -- Hand back copies. Callers insert their own rows into this table.
     local collectionItems = {}
-
-    for k, item in pairs(items) do
-        if item.data.itemType == "attachment"
-            and table_contains(SUPPORTED_MEDIA_TYPES, item.data.contentType ) then
-
-            if item.data.parentItem ~= nil then
-                -- if we have a parent item, check whether it belongs to the collection
-                -- we search for
-                local parentItem = items[item.data.parentItem]
-                if parentItem ~= nil and table_contains(parentItem.data.collections, key) then
-                    local author = parentItem.meta.creatorSummary or "Unknown"
-                    local name = author .. " - " .. parentItem.data.title
-
-                    table.insert(collectionItems, {
-                        ["key"] = k,
-                        ["text"] = name
-                    })
-                end
-            else
-                -- item does not have metadata header
-                if item.data.collections ~= nil
-                    and table_contains(item.data.collections, key) then
-                    table.insert(collectionItems, {
-                        ["key"] = k,
-                        ["text"] = item.data.title
-                    })
-                end
-            end
-        end
+    for i, entry in ipairs(entries) do
+        collectionItems[i] = { ["key"] = entry.key, ["text"] = entry.text }
     end
-    table.sort(collectionItems, comparator)
 
-    -- Join collections and items together and return it
     return joinTables(result, collectionItems)
 end
 
 -- Turns a user query into a Lua pattern that matches the words in order with
 -- anything in between. Every word is escaped, so a query containing pattern
 -- characters such as the hyphen in "Ben-Kiki" still matches literally.
+--
+-- The pattern is deliberately not wrapped in ".*". Lua patterns are unanchored
+-- already, so a leading ".*" matches the same strings while making the matcher
+-- retry from every position, which costs about twenty times as much.
 function API.buildSearchPattern(query)
     local words = {}
     for word in string.gmatch(string.lower(query), "%S+") do
         table.insert(words, (word:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")))
     end
 
-    return ".*" .. table.concat(words, ".*") .. ".*"
+    return table.concat(words, ".*")
 end
 
 function API.displaySearchResults(query)
-    print("displaySearchResults for " .. query)
     local queryRegex = API.buildSearchPattern(query)
-    print("Searching for " .. queryRegex)
-    -- Careful: linear search. Can be optimized quite a bit!
-    local items = API.getItems()
     local results = {}
 
-    for k, item in pairs(items) do
-        if item.data.itemType == "attachment"
-            and table_contains(SUPPORTED_MEDIA_TYPES, item.data.contentType ) then
-            if item.data.parentItem ~= nil and items[item.data.parentItem] ~= nil then
-                local parentItem = items[item.data.parentItem]
-                if parentItem ~= nil then
-                    local author = parentItem.meta.creatorSummary or "Unknown"
-                    local name = author .. " - " .. parentItem.data.title
-
-                    if parentItem.data.DOI ~= nil and parentItem.data.DOI ~= "" then
-                        name = name .. " - " .. parentItem.data.DOI
-                    end
-
-                    if string.match(string.lower(name), queryRegex) then
-                        table.insert(results, {
-                            ["key"] = k,
-                            ["text"] = name
-                        })
-                    end
-                end
-            elseif item.data ~= nil and item.data.title ~= nil then
-                -- item does not have metadata header, match against title directly
-                local title = item.data.title
-                if string.match(string.lower(title), queryRegex) then
-                        table.insert(results, {
-                            ["key"] = k,
-                            ["text"] = title
-                        })
-                end
-            end
+    for _, entry in ipairs(API.getIndex().searchable) do
+        if string.match(entry.haystack, queryRegex) then
+            table.insert(results, { ["key"] = entry.key, ["text"] = entry.text })
         end
     end
 
     return results
 end
-
 
 -- Output the timezone-agnostic timestamp, since KOReader uses timestamps with
 -- local time.

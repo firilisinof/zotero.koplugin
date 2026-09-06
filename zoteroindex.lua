@@ -1,5 +1,43 @@
 local Index = {}
 
+---@param entry ZoteroRow
+---@return ZoteroRow
+local function copyRow(entry)
+    local row = {}
+    for field, value in pairs(entry) do row[field] = value end
+    return row
+end
+
+---@param value string|nil
+---@return string|nil
+local function nonempty(value)
+    if type(value) == "string" and value:find("%S") then return value end
+end
+
+---@param owner ZoteroItem
+---@return string|nil
+local function publicationYear(owner)
+    local parsed = nonempty(owner.meta and owner.meta.parsedDate)
+    local date = parsed or nonempty(owner.data.date)
+    return date and date:match("%f[%d](%d%d%d%d)%f[%D]")
+end
+
+---@param key string
+---@param item ZoteroItem
+---@param parent ZoteroItem|nil
+---@return ZoteroRow
+local function attachmentRow(key, item, parent)
+    local owner = parent or item
+    return {
+        key = key,
+        title = nonempty(parent and parent.data.title) or nonempty(item.data.title) or nonempty(item.data.filename),
+        author = nonempty(owner.meta and owner.meta.creatorSummary),
+        year = publicationYear(owner),
+        file_format = item.data.contentType == "application/pdf" and "PDF" or "EPUB",
+        downloadable = item.data.linkMode ~= "linked_file",
+    }
+end
+
 ---@param item ZoteroItem|nil
 ---@return boolean
 local function readable(item)
@@ -41,16 +79,20 @@ end
 ---@param item ZoteroItem
 ---@param parent ZoteroItem|nil
 local function indexAttachment(index, key, item, parent)
-    local title = parent and nameFor(parent) or item.data.title
-    if not title then return end
+    local row = attachmentRow(key, item, parent)
+    -- Keep legacy ordering and ordered author/title/DOI matching independent of layout.
+    local title = parent and nameFor(parent) or nonempty(item.data.title) or row.title or key
     local owner = parent or item
+    row.text = title
     if parent or not item.data.parentItem then
-        fileUnder(index.by_collection, owner.data.collections, { key = key, text = title })
+        fileUnder(index.by_collection, owner.data.collections, row)
     end
-    -- Only search shows the DOI. Orphans remain searchable under their own title.
+    -- Only search includes the DOI in matching and ordering. Orphans use their own title.
     local doi = parent and parent.data.DOI
     if doi and doi ~= "" then title = title .. " - " .. doi end
-    table.insert(index.searchable, { key = key, text = title, haystack = string.lower(title) })
+    local search_row = copyRow(row)
+    search_row.text, search_row.haystack = title, string.lower(title)
+    table.insert(index.searchable, search_row)
 end
 
 ---@param first ZoteroRow
@@ -93,7 +135,10 @@ end
 local function displayRow(api, entry)
     -- File presence changes independently of metadata, including in subprocesses.
     local _, path = api.getDirAndPath(entry.key)
-    return { key = entry.key, text = entry.text, downloaded = api.util.isFile(path) }
+    local row = copyRow(entry)
+    row.haystack = nil
+    row.downloaded = api.util.isFile(path)
+    return row
 end
 
 ---@param api ZoteroAPI
@@ -118,7 +163,7 @@ end
 function Index.displayCollection(api, key)
     local result = collectionRows(api, key)
     if not key then return result end
-    -- Hand back copies because the browser inserts its own rows and decorates names.
+    -- Hand back copies because the browser inserts its own rows and adds presentation fields.
     for _, entry in ipairs(api.getIndex().by_collection[key] or {}) do
         table.insert(result, displayRow(api, entry))
     end

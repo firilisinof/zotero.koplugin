@@ -10,7 +10,7 @@ Fork of [stelzch/zotero.koplugin](https://github.com/stelzch/zotero.koplugin).
 | `main.lua` | KOReader plugin lifecycle, dispatcher actions and sync scheduling |
 | `zoteroapi.lua` | Public API facade and local cache I/O |
 | `zotero{settings,index,transport,download,sync}.lua` | Focused API behavior modules, injected with the facade |
-| `zotero{browser,dialogs,menu,ui}.lua` | Browser, configuration dialogs, menu and KOReader UI boundary |
+| `zotero{browser,row,dialogs,menu,ui}.lua` | Browser, metadata rows, configuration dialogs, menu and KOReader UI boundary |
 | `zotero{util,archive,types}.lua` | Filesystem/archive boundaries and shared Lua annotations |
 | `_meta.lua` | Plugin manifest read by KOReader's plugin loader |
 | `spec/` | busted specs, run inside a real KOReader build |
@@ -117,7 +117,9 @@ is done in `API.init`, `API.setItems` and `API.setCollections`. Mutating the tab
 returned by `API.getItems()` in place without going through `setItems` leaves the
 index stale.
 
-`displayCollection` and `displaySearchResults` return copies because the browser inserts its own rows and decorates downloaded entries. The `downloaded` flag is computed from file presence while copying, so it stays fresh independently of the cached index. Changing `filter_tag` also drops the index.
+`displayCollection` and `displaySearchResults` return copies because the browser inserts its own rows and adds presentation fields. The `downloaded` flag is computed from file presence while copying, so it stays fresh independently of the cached index. Changing `filter_tag` also drops the index.
+
+Attachment rows also carry `title`, `author`, `year`, `file_format` and `downloadable` for the native metadata layout in `zoterorow.lua`. The legacy `text` remains the sorting and search source. The browser treats items per page as a maximum and reduces capacity to fit two title lines plus secondary metadata at the active font size.
 
 ## Behaviour worth knowing
 

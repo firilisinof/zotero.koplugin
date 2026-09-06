@@ -81,9 +81,9 @@ ZoteroAPI.http = fake
 Pagination reads `total-results` off each page, so a stubbed GET needs that header
 or the fetch reports that it could not size the collection.
 
-`API.http` is the only injection seam. File I/O and `os.execute` stay real, because
-each test gets its own temporary Zotero directory under `KO_HOME`, which the test
-runner wipes before every session.
+`API.http` is the only injection seam. File I/O and archive unpacking stay real,
+because each test gets its own temporary Zotero directory under `KO_HOME`, which the
+test runner wipes before every session.
 
 `API` is a singleton module, so every test calls `package.reload("zoteroapi")` in
 `before_each` to be sure nothing carries over through module-level state.
@@ -101,9 +101,9 @@ can diff before adopting anything.
   against KOReader's own specs. Prefix new ones with `zotero`.
 - Assert on behaviour through the public `API.*` functions rather than on internals.
 
-The WebDAV download specs shell out to the real `unzip` against a real zip fixture
-(`spec/fixtures/attachment.zip`), so they cover the unpack step rather than stubbing
-it. That makes them a few milliseconds each instead of microseconds.
+The WebDAV download specs unpack real zip fixtures (`spec/fixtures/attachment.zip`
+and `attachment_misnamed.zip`) through libarchive, so they cover the unpack step
+rather than stubbing it.
 
 ## The item index
 
@@ -128,14 +128,14 @@ its own rows ("All Items", "No Items") into the returned table.
   pin it, so change it deliberately rather than by accident.
 - `linked_file` attachments are listed but cannot be opened, since Zotero does not
   serve them. `downloadAndGetPath` returns an explanatory error.
-- `API.downloadWebDAV` interpolates paths into a shell command inside single quotes.
-  Zotero keys are alphanumeric so this is safe today, but a path containing a single
-  quote would break it.
+- `API.downloadWebDAV` unpacks through KOReader's `ffi/archiver` (libarchive) rather
+  than shelling out. It extracts the archive's first file entry to the filename
+  Zotero recorded, so an entry spelled differently still lands where the UI looks.
 - `API.setItems` and `API.setCollections` use `assert(io.open(...))`, so a failed
   write raises rather than returning an error.
-- Under LuaJIT, `os.execute` returns the exit status as a **number** (0 on success,
-  256 on failure), not a boolean. Every number is truthy, so a shelled-out command
-  must be checked with `~= 0`.
+- If you ever shell out again, note that under LuaJIT `os.execute` returns the exit
+  status as a **number** (0 on success, 256 on failure), not a boolean, and that a
+  command which prompts will hang the reader. This is what `unzip` used to do.
 - Lua patterns are unanchored. Wrapping a search pattern in `.*` matches the same
   strings but makes the matcher retry from every position, which cost about twenty
   times as much on a large library.

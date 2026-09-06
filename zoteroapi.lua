@@ -3,6 +3,7 @@ local LuaSettings = require("luasettings")
 local http = require("socket.http")
 local ltn12 = require("ltn12")
 local socketutil = require("socketutil")
+local Archiver = require("ffi/archiver")
 local JSON = require("json")
 local lfs = require("libs/libkoreader-lfs")
 local sha2 = require("ffi/sha2")
@@ -532,35 +533,46 @@ function API.downloadWebDAV(key, targetDir, targetPath)
     }
     socketutil:reset_timeout()
 
-    if c ~= 200 then
-        return nil, "Download failed with status code " .. c
+    if r ~= 1 or c ~= 200 then
+        os.remove(zipPath)
+        return nil, "Download failed with status code " .. tostring(c)
     end
 
-    -- Zotero WebDAV storage packs documents inside a zipfile.
-    --
-    -- -o overwrites the copy an earlier download left behind. Without it unzip
-    -- stops to ask whether to replace the file and waits on stdin, which never
-    -- answers on a reader, so the whole app hangs.
-    --
-    -- The redirect is a second line of defence: any other prompt, such as the
-    -- password an encrypted archive asks for, then fails instead of blocking.
-    local zip_cmd = "unzip -qq -o '" .. zipPath .. "' -d '" .. targetDir .. "' < /dev/null"
-    print("Unzipping with " .. zip_cmd)
-    local zip_result = os.execute(zip_cmd)
+    -- Zotero WebDAV storage packs each attachment inside a zipfile. Unpack it
+    -- with KOReader's libarchive bindings rather than shelling out to unzip:
+    -- no external binary to depend on, and no interactive prompt that would
+    -- block the reader forever when a previous copy is already in place.
+    local reader = Archiver.Reader:new()
+    if not reader:open(zipPath) then
+        local err = reader.err
+        os.remove(zipPath)
+        return nil, "Could not open the downloaded archive: " .. tostring(err or "unknown error")
+    end
+
+    -- Zotero stores exactly one file per archive. Extract it under the name
+    -- Zotero recorded for the attachment, so an archive whose entry is spelled
+    -- differently still lands where the reader looks for it.
+    local entryPath = nil
+    for entry in reader:iterate() do
+        if entry.mode == "file" then
+            entryPath = entry.path
+            break
+        end
+    end
+
+    local extracted = false
+    if entryPath ~= nil then
+        extracted = reader:extractToPath(entryPath, targetPath)
+    end
+
+    local err = reader.err
+    reader:close()
     os.remove(zipPath)
 
-    -- LuaJIT follows Lua 5.1, where os.execute returns the exit status as a
-    -- number. Every number is truthy, zero included, so this has to compare.
-    if zip_result ~= 0 then
-        return nil, "Unzipping failed"
-    end
-
-    -- The archive is expected to hold the attachment under the filename Zotero
-    -- recorded. If it does not, say so rather than handing back a path to
-    -- nothing.
-    if not file_exists(targetPath) then
-        local filename = targetPath:match("[^/]+$") or targetPath
-        return nil, "The archive did not contain a file named '" .. filename .. "'"
+    if entryPath == nil then
+        return nil, "The downloaded archive holds no file"
+    elseif not extracted then
+        return nil, "Could not unpack the archive: " .. tostring(err or "unknown error")
     end
 
     return targetPath

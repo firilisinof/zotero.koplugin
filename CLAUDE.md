@@ -34,17 +34,17 @@ make test KOREADER_SRC=~/src/koreader
 
 ### Why edits are live
 
-`make setup` creates two symlinks in the KOReader checkout:
+`make setup` creates symlinks in the KOReader checkout:
 
 - `$KOREADER_SRC/plugins/zotero.koplugin` to this repository
-- `$KOREADER_SRC/spec/unit/zoteroapi_spec.lua` to `spec/zoteroapi_spec.lua`
+- one entry under `$KOREADER_SRC/spec/unit/` per `spec/*_spec.lua`
 
 KOReader's own build then symlinks its whole `plugins/` and `spec/` trees into the
 emulator output (`Makefile`, the `all:` target). Nothing is copied anywhere, so
 **editing a `.lua` file here takes effect on the next `make run` or `make test`
 with no rebuild**. Only `make setup` and `make build` compile anything.
 
-The plugin's sources never live in the KOReader checkout. Only the two symlinks do.
+The plugin's sources never live in the KOReader checkout. Only the symlinks do.
 
 ### GNU tools on PATH
 
@@ -65,24 +65,28 @@ repository and cannot be committed by accident. The specs never read it.
 
 ## Specs
 
-`spec/zoteroapi_spec.lua` runs entirely offline. `zoteroapi.lua` exposes its HTTP
+`spec/zoteroapi_spec.lua` covers the API client and `spec/zotero_plugin_spec.lua`
+the widget's init guards. Both run entirely offline. `zoteroapi.lua` exposes its HTTP
 transport as `API.http`, and each test swaps in a `spec/support/fake_http.lua`
 instance serving the canned responses in `spec/fixtures/`:
 
 ```lua
-fake:on("HEAD", "/items%?", { headers = { ["total-results"] = "150" } })
-fake:on("GET",  "/items%?.*start=0$", { body = Fixtures.raw("items_page1.json") })
+fake:on("GET", "/items%?.*start=0$", {
+    headers = { ["total-results"] = "150", ["last-modified-version"] = "1214" },
+    body = Fixtures.raw("items_page1.json"),
+})
 ZoteroAPI.http = fake
 ```
+
+Pagination reads `total-results` off each page, so a stubbed GET needs that header
+or the fetch reports that it could not size the collection.
 
 `API.http` is the only injection seam. File I/O and `os.execute` stay real, because
 each test gets its own temporary Zotero directory under `KO_HOME`, which the test
 runner wipes before every session.
 
-Every test calls `package.reload("zoteroapi")` in `before_each`. This is necessary
-because `API.init` does not clear the module-level `API.items`, `API.collections` and
-`API.modified_items` caches, so a plain re-init would carry the previous test's
-library over.
+`API` is a singleton module, so every test calls `package.reload("zoteroapi")` in
+`before_each` to be sure nothing carries over through module-level state.
 
 The fixtures are hand-written to match Zotero Web API v3 response shapes. To check
 them against a real library, run `tools/fetch-fixtures.sh` with `ZOTERO_USER_ID` and
@@ -91,7 +95,8 @@ can diff before adopting anything.
 
 ### Conventions
 
-- Spec files must end in `_spec.lua` or busted will not collect them.
+- Spec files must end in `_spec.lua` or busted will not collect them. The Makefile
+  links and runs every `spec/*_spec.lua`, so a new one needs no wiring.
 - They are symlinked into KOReader's shared `spec/unit/`, so names have to be unique
   against KOReader's own specs. Prefix new ones with `zotero`.
 - Assert on behaviour through the public `API.*` functions rather than on internals.
@@ -100,22 +105,40 @@ The WebDAV download specs shell out to the real `unzip` against a real zip fixtu
 (`spec/fixtures/attachment.zip`), so they cover the unpack step rather than stubbing
 it. That makes them a few milliseconds each instead of microseconds.
 
-Under LuaJIT, `os.execute` returns the exit status as a **number** (0 on success,
-256 on failure), not a boolean. Every number is truthy, so a shelled-out command must
-be checked with `~= 0`.
+## The item index
 
-## Known warts
+`displayCollection` and `displaySearchResults` read from `API.getIndex()`, built
+lazily by walking the library once. It holds two lookups:
 
-Left alone deliberately. Worth knowing before touching the surrounding code.
+- `by_collection[collectionKey]` list of readable attachments, sorted by display name
+- `searchable` the same attachments with a pre-lowercased haystack, sorted
 
-- `API.init` does not reset the module-level caches, as described above.
-  `API.resetSyncState` exists partly to work around this.
-- `API.displaySearchResults` interpolates the query straight into a Lua pattern, so a
-  search containing `%`, `-`, `(` or other pattern characters misbehaves or errors.
-- KOReader now warns that the `name` field in `_meta.lua` is deprecated and ignored.
-- `API.syncAllItems` stores the library version reported by the *collections* fetch,
-  not the items fetch. `spec/zoteroapi_spec.lua` pins this behaviour, so change the
-  test deliberately if you change the code.
+**If you add anything that mutates the library, drop the index.** `API.index = nil`
+is done in `API.init`, `API.setItems` and `API.setCollections`. Mutating the table
+returned by `API.getItems()` in place without going through `setItems` leaves the
+index stale.
+
+`displayCollection` returns copies of the index entries, because `main.lua` inserts
+its own rows ("All Items", "No Items") into the returned table.
+
+## Behaviour worth knowing
+
+- An attachment whose `parentItem` is not in the library is hidden from collection
+  browsing but still findable by search under its own title. This is odd, and specs
+  pin it, so change it deliberately rather than by accident.
+- `linked_file` attachments are listed but cannot be opened, since Zotero does not
+  serve them. `downloadAndGetPath` returns an explanatory error.
+- `API.downloadWebDAV` interpolates paths into a shell command inside single quotes.
+  Zotero keys are alphanumeric so this is safe today, but a path containing a single
+  quote would break it.
+- `API.setItems` and `API.setCollections` use `assert(io.open(...))`, so a failed
+  write raises rather than returning an error.
+- Under LuaJIT, `os.execute` returns the exit status as a **number** (0 on success,
+  256 on failure), not a boolean. Every number is truthy, so a shelled-out command
+  must be checked with `~= 0`.
+- Lua patterns are unanchored. Wrapping a search pattern in `.*` matches the same
+  strings but makes the matcher retry from every position, which cost about twenty
+  times as much on a large library.
 
 ## Not set up yet
 

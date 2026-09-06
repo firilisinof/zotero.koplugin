@@ -20,6 +20,10 @@ local sha2 = require("ffi/sha2")
 
 local API = {}
 
+-- Injection point: specs swap this for a fake transport. Everything that talks
+-- to the network must go through it.
+API.http = http
+
 local SUPPORTED_MEDIA_TYPES = {
     [1] = "application/pdf",
     [2] = "application/epub+zip"
@@ -153,7 +157,7 @@ function API.checkWebDAV()
     local pass = API.getWebDAVPassword()
     local headers = API.getWebDAVHeaders()
 
-    local b, c, h = http.request {
+    local b, c, h = API.http.request {
         url = url,
         method = "PROPFIND",
         headers = headers
@@ -250,7 +254,7 @@ end
 
 function API.fetchCollectionSize(collection_url, headers)
     print("Determining size of '" .. collection_url .. "'")
-    local r, c, h = http.request {
+    local r, c, h = API.http.request {
         method = "HEAD",
         url = collection_url,
         headers = headers
@@ -290,7 +294,7 @@ function API.fetchCollectionPaginated(collection_url, headers, callback)
         print("Fetching page ", item_nr, page_url)
 
         local page_data = {}
-        local r, c, h = http.request {
+        local r, c, h = API.http.request {
             method = "GET",
             url = page_url,
             headers = headers,
@@ -474,7 +478,7 @@ function API.downloadAndGetPath(key, download_callback)
         local url = "https://api.zotero.org/users/" .. API.getUserID() .. "/items/" .. key .. "/file"
         print("Fetching " .. url)
 
-        local r, c, h = http.request {
+        local r, c, h = API.http.request {
             url = url,
             headers = API.getHeaders(api_key),
             redirect = true,
@@ -503,7 +507,7 @@ function API.downloadWebDAV(key, targetDir, targetPath)
     local headers = API.getWebDAVHeaders()
     local zipPath = targetDir .. "/" .. key .. ".zip"
     print("Fetching URL " .. url)
-    local r, c, h = http.request {
+    local r, c, h = API.http.request {
         method = "GET",
         url = url,
         headers = headers,

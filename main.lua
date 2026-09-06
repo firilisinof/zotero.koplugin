@@ -1,491 +1,122 @@
 local Blitbuffer = require("ffi/blitbuffer")
-local Dispatcher = require("dispatcher")  -- luacheck:ignore
-local InfoMessage = require("ui/widget/infomessage")
-local InputDialog = require("ui/widget/inputdialog")
-local UIManager = require("ui/uimanager")
+local Dispatcher = require("dispatcher")
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
-local SpinWidget = require("ui/widget/spinwidget")
-local DataStorage = require("datastorage")
 local FrameContainer = require("ui/widget/container/framecontainer")
-local Device = require("device")
-local Screen = Device.screen
-local Font = require("ui/font")
-local Menu = require("ui/widget/menu")
-local Geom = require("ui/geometry")
+local DataStorage = require("datastorage")
+local Browser = require("zoterobrowser")
 local _ = require("gettext")
-local ZoteroAPI = require("zoteroapi")
-local MultiInputDialog = require("ui/widget/multiinputdialog")
-local lfs = require("libs/libkoreader-lfs")
-
-
-local DEFAULT_LINES_PER_PAGE = 14
-
-local table_empty = function(table)
-    -- see https://stackoverflow.com/a/1252776
-    local next = next
-    return (next(table) == nil)
-end
-
-local ZoteroBrowser = Menu:extend{
-    no_title = false,
-    is_borderless = true,
-    is_popout = false,
-    parent = nil,
-    title_bar_left_icon = "appbar.search",
-    covers_full_screen = true,
-    return_arrow_propagation = false,
-}
-
-
-function ZoteroBrowser:init()
-    Menu.init(self)
-    self.paths = {}
-end
-
--- Show search input
-function ZoteroBrowser:onLeftButtonTap()
-    table.insert(self.paths, "search")
-    local search_query_dialog
-    search_query_dialog = InputDialog:new{
-        title = _("Search Zotero titles"),
-        input = "",
-        input_hint = "search query",
-        description = _("This will search title, first author and DOI of all entries."),
-        buttons = {
-            {
-                {
-                    text = _("Cancel"),
-                    id = "close",
-                    callback = function()
-                        UIManager:close(search_query_dialog)
-                    end,
-                },
-                {
-                    text = _("Search"),
-                    is_enter_default = true,
-                    callback = function()
-                        UIManager:close(search_query_dialog)
-                        self:displaySearchResults(search_query_dialog:getInputText())
-                    end,
-                },
-            }
-        }
-    }
-    UIManager:show(search_query_dialog)
-    search_query_dialog:onShowKeyboard()
-end
-
-
-function ZoteroBrowser:onReturn()
-    table.remove(self.paths, #self.paths)
-    if #self.paths == 0 then
-        self:displayCollection(nil)
-    else
-        self:displayCollection(self.paths[#self.paths])
-    end
-    return true
-end
-
-
-function ZoteroBrowser:onMenuSelect(item)
-    if item.collection ~= nil then
-        table.insert(self.paths, item.key)
-        self:displayCollection(item.key)
-    elseif item.wildcard_collection ~= nil then
-        table.insert(self.paths, "root")
-        self:displaySearchResults("")
-    elseif item.is_label ~= nil then
-        -- nop
-    else
-        self.download_dialog = InfoMessage:new{
-            text = _("Downloading file"),
-            timeout = 5,
-            icon = "notice-info",
-        }
-        UIManager:scheduleIn(0.05, function()
-            local full_path, e = ZoteroAPI.downloadAndGetPath(item.key)
-            if e ~= nil then
-                local b = InfoMessage:new{
-                    text = _("Could not open file.") .. e,
-                    timeout = 5,
-                    icon = "notice-warning"
-                }
-                UIManager:show(b)
-            else
-                UIManager:close(self.download_dialog)
-                local ReaderUI = require("apps/reader/readerui")
-                self.close_callback()
-                ReaderUI:showReader(full_path)
-            end
-        end)
-        UIManager:show(self.download_dialog)
-    end
-end
-
-function ZoteroBrowser:displaySearchResults(query)
-    local items = ZoteroAPI.displaySearchResults(query)
-    if table_empty(items) then
-        table.insert(items, 1, {
-            ["text"] = _("No Results"),
-            ["is_label"] = true,
-        })
-    end
-    self:setItems(items)
-end
-
-function ZoteroBrowser:displayCollection(collection_id)
-    local items = ZoteroAPI.displayCollection(collection_id)
-
-    if collection_id == nil then
-        table.insert(items, 1, {
-            ["text"] = _("All Items"),
-            ["wildcard_collection"] = true
-        })
-    end
-
-    if table_empty(items) then
-        table.insert(items, 1, {
-            ["text"] = _("No Items"),
-            ["is_label"] = true,
-        })
-    end
-
-    self:setItems(items)
-end
-
-function ZoteroBrowser:setItems(items)
-    self:switchItemTable("Zotero", items)
-end
 
 local Plugin = WidgetContainer:new{
-    name = "zotero",
-    is_doc_only = false
+    name = "zotero", is_doc_only = false,
+    api = require("zoteroapi"), runtime = require("zoteroui"),
 }
 
+for name, method in pairs(require("zoterodialogs")) do Plugin[name] = method end
+for name, method in pairs(require("zoteromenu")) do Plugin[name] = method end
+
+--- Register the existing dispatcher actions. Example: plugin:onDispatcherRegisterActions().
 function Plugin:onDispatcherRegisterActions()
     Dispatcher:registerAction("zotero_open_action", {
-        category="none",
-        event="ZoteroOpenAction",
-        title=_("Zotero Open"),
-        general=true,
+        category = "none", event = "ZoteroOpenAction", title = _("Zotero Open"), general = true,
     })
     Dispatcher:registerAction("zotero_sync_action", {
-        category="none",
-        event="ZoteroSyncAction",
-        title=_("Zotero Sync"),
-        general=true
+        category = "none", event = "ZoteroSyncAction", title = _("Zotero Sync"), general = true,
     })
 end
 
+--- Mount the plugin, containing initialization errors. Example: plugin:init().
 function Plugin:init()
     self.initialized = false
     self:onDispatcherRegisterActions()
     self.ui.menu:registerToMainMenu(self)
-
-    -- pcall rather than xpcall: an xpcall handler receives the error message as
-    -- its first argument, so passing a method here made the message arrive in
-    -- place of self and the handler itself raised.
+    -- pcall rather than xpcall: a method used as an error handler would receive
+    -- the error string in place of self and fail while reporting the first error.
     local ok, err = pcall(self.initAPIAndBrowser, self)
     if not ok then
-        print("Z: could not initialize: " .. tostring(err))
+        print(self.api.util.encode({ event = "zotero_init_failed", error = tostring(err) }))
         return
     end
-
     self.initialized = true
-    print("Z: successfully initialized!")
+    if self.api.settings then self:maybeStartupSync() end
 end
 
+--- Guard actions after a failed initialization. Example: plugin:checkInitialized().
+---@return boolean
 function Plugin:checkInitialized()
-    if not self.initialized or self.browser == nil then
-        UIManager:show(InfoMessage:new{
-            text = _("Zotero could not be initialized. Check the KOReader log for details."),
-            timeout = 3,
-            icon = "notice-warning"
-        })
-        return false
-    end
-
-    return true
+    if self.initialized and self.browser then return true end
+    self.runtime:message(_("Zotero could not be initialized. Check the KOReader log for details."), 3)
+    return false
 end
 
+--- Wire the browser to the shared API and KOReader runtime. Example: plugin:initAPIAndBrowser().
 function Plugin:initAPIAndBrowser()
     self.zotero_dir_path = DataStorage:getDataDir() .. "/zotero"
-    lfs.mkdir(self.zotero_dir_path)
-    ZoteroAPI.init(self.zotero_dir_path)
-    self.small_font_face = Font:getFace("smallffont")
-    self.browser = ZoteroBrowser:new{
-        refresh_callback = function()
-            UIManager:setDirty(self.zotero_dialog)
-            self.ui:onRefresh()
-        end,
-        close_callback = function()
-            UIManager:close(self.zotero_dialog)
-        end,
-		items_per_page = self:getItemsPerPage()
+    self.api.util.mkdir(self.zotero_dir_path)
+    if self.api.zotero_dir ~= self.zotero_dir_path then self.api.init(self.zotero_dir_path) end
+    self.browser = Browser:new{
+        api = self.api, runtime = self.runtime, items_per_page = self:getItemsPerPage(),
+        close_callback = function() self.runtime:close(self.zotero_dialog) end,
     }
     self.zotero_dialog = FrameContainer:new{
-        padding = 0,
-        bordersize = 0,
-        background = Blitbuffer.COLOR_WHITE,
-        self.browser
+        padding = 0, bordersize = 0, background = Blitbuffer.COLOR_WHITE, self.browser,
     }
     self.browser.show_parent = self.zotero_dialog
-    print("Z: Browser initialized")
 end
 
-function Plugin:addToMainMenu(menu_items)
-    menu_items.zotero = {
-        text = _("Zotero"),
-        sorting_hint = "search",
-        sub_item_table = {
-            {
-                text = _("Browse"),
-                callback = function()
-                    self:onZoteroOpenAction()
-                end,
-            },
-            {
-                text = _("Synchronize"),
-                callback = function()
-                    self:onZoteroSyncAction()
-                end,
-
-            },
-            {
-                text = _("Maintenance"),
-                callback = function()
-                    return nil
-                end,
-                sub_item_table = {
-                    {
-                        text = _("Resync entire collection"),
-                        callback = function()
-                            ZoteroAPI.resetSyncState()
-                            self:onZoteroSyncAction()
-                        end,
-                    },
-                },
-            },
-            {
-                text = _("Settings"),
-                callback = function()
-                    return nil
-                end,
-                sub_item_table = {
-                    {
-                        text = _("Configure Zotero account"),
-                        callback = function()
-                            self:setAccount()
-                        end,
-                    },
-                    {
-                        text = _("Enable WebDAV storage"),
-                        checked_func = function()
-                            return ZoteroAPI.getWebDAVEnabled()
-                        end,
-                        callback = function()
-                            ZoteroAPI.toggleWebDAVEnabled()
-                        end,
-                    },
-                    {
-                        text = _("Configure WebDAV account"),
-                        callback = function()
-                            self:setWebdavAccount()
-                        end,
-                    },
-                    {
-                        text = _("Check WebDAV connection"),
-                        callback = function()
-                            local msg = nil
-                            local result = ZoteroAPI.checkWebDAV()
-                            if result == nil then
-                                msg = _("Success, WebDAV works!")
-                            else
-                                msg = _("WebDAV could not connect: ") .. result
-                            end
-                            UIManager:show(InfoMessage:new{
-                                text = msg,
-                                timeout = 3,
-                                icon = "notice-info"
-                            })
-                        end,
-                    },
-                    {
-                        text = _("Items per page"),
-                        callback = function()
-                            self:setItemsPerPage()
-                        end,
-
-                    },
-                }
-            }
-        },
-    }
-end
-
-function Plugin:setAccount()
-    self.account_dialog = MultiInputDialog:new{
-        title = _("Edit User Info"),
-        fields = {
-            {
-                text = ZoteroAPI.getUserID(),
-                hint = _("User ID (integer)"),
-            },
-            {
-                text = ZoteroAPI.getAPIKey(),
-                hint = _("API Key"),
-            },
-        },
-        buttons = {
-            {
-                {
-                    text = _("Cancel"),
-                    id = "close",
-                    callback = function()
-                        self.account_dialog:onClose()
-                        UIManager:close(self.account_dialog)
-                    end
-                },
-                {
-                    text = _("Update"),
-                    callback = function()
-                        local fields = self.account_dialog:getFields()
-                        if not string.match(fields[1], "[0-9]+") then
-                            UIManager:show(InfoMessage:new{
-                                text = _("The User ID must be an integer number."),
-                                timeout = 3,
-                                icon = "notice-warning"
-                            })
-                            return
-                        end
-
-                        ZoteroAPI.setUserID(fields[1])
-                        ZoteroAPI.setAPIKey(fields[2])
-                        ZoteroAPI.saveModifiedItems()
-                        self.account_dialog:onClose()
-                        UIManager:close(self.account_dialog)
-                    end
-                },
-            },
-        },
-    }
-    UIManager:show(self.account_dialog)
-    self.account_dialog:onShowKeyboard()
-end
-
-function Plugin:setWebdavAccount()
-    self.webdav_account_dialog = MultiInputDialog:new{
-        title = _("Edit WebDAV credentials"),
-        fields = {
-            {
-                text = ZoteroAPI.getWebDAVUrl(),
-                hint = _("URL")
-            },
-            {
-                text = ZoteroAPI.getWebDAVUser(),
-                hint = _("Username"),
-            },
-            {
-                text = ZoteroAPI.getWebDAVPassword(),
-                hint = _("Password"),
-            },
-        },
-        buttons = {
-            {
-                {
-                    text = _("Cancel"),
-                    id = "close",
-                    callback = function()
-                        self.webdav_account_dialog:onClose()
-                        UIManager:close(self.webdav_account_dialog)
-                    end
-                },
-                {
-                    text = _("Update"),
-                    callback = function()
-                        local fields = self.webdav_account_dialog:getFields()
-
-                        ZoteroAPI.setWebDAVUrl(fields[1])
-                        ZoteroAPI.setWebDAVUser(fields[2])
-                        ZoteroAPI.setWebDAVPassword(fields[3])
-                        ZoteroAPI.saveModifiedItems()
-                        self.webdav_account_dialog:onClose()
-                        UIManager:close(self.webdav_account_dialog)
-                    end
-                },
-            },
-        },
-    }
-    UIManager:show(self.webdav_account_dialog)
-    self.webdav_account_dialog:onShowKeyboard()
-end
-
-function Plugin:setItemsPerPage()
-    assert(ZoteroAPI.getSettings ~= nil)
-	print("setting to " .. self:getItemsPerPage())
-    self.items_per_page_dialog = SpinWidget:new {
-        title_text = _("Set items per page"),
-        value = self:getItemsPerPage(),
-		value_min = 1,
-		value_max = 1000,
-        callback = function(d)
-						ZoteroAPI.getSettings():saveSetting("items_per_page", d.value)
-						ZoteroAPI.getSettings():flush()
-                        UIManager:show(InfoMessage:new{
-                            text = _("This change requires a restart of KOReader to take effect."),
-                            timeout = 3,
-                            icon = "notice"
-                        })
-                    end,
-    }
-	UIManager:show(self.items_per_page_dialog)
-end
-
-function Plugin:getItemsPerPage()
-    return ZoteroAPI.getSettings():readSetting("items_per_page", DEFAULT_LINES_PER_PAGE)
-end
-
+--- Browse cached metadata immediately. Example: plugin:onZoteroOpenAction().
 function Plugin:onZoteroOpenAction()
-    if not self:checkInitialized() then
-        return
-    end
-
-    self.browser:init()
-    UIManager:show(self.zotero_dialog, "full", Geom:new{
-        w = Screen:getWidth(),
-        h = Screen:getHeight()
-    })
-    self.browser:displayCollection(nil)
+    if not self:checkInitialized() then return end
+    self.browser:resetLibrary()
+    self.runtime:show(self.zotero_dialog)
+    self:maybeAutoSync("open")
 end
 
-function Plugin:onZoteroSyncAction()
-    if not self:checkInitialized() then
+--- Attempt startup sync at most once per process. Example: plugin:maybeStartupSync().
+function Plugin:maybeStartupSync()
+    if self.api.startup_attempted then return end
+    self.api.startup_attempted = true
+    self:maybeAutoSync("startup")
+end
+
+--- Run enabled automatic triggers only with an existing connection. Example: plugin:maybeAutoSync("open").
+---@param trigger string
+function Plugin:maybeAutoSync(trigger)
+    if not self.api.shouldAutoSync(trigger, self.runtime:now()) then return end
+    if not self.runtime:isOnline() then return end
+    self:startSync(false, true)
+end
+
+--- Synchronize explicitly, optionally rewinding the delta. Example: plugin:onZoteroSyncAction(true).
+---@param reset boolean|nil
+function Plugin:onZoteroSyncAction(reset)
+    if not self:checkInitialized() then return end
+    self:startSync(reset == true, false)
+end
+
+---@param reset boolean
+---@param automatic boolean
+function Plugin:startSync(reset, automatic)
+    if not self.api.beginOperation("sync") then
+        if not automatic then self.runtime:message(_("A Zotero operation is already running."), 3) end
         return
     end
-    UIManager:scheduleIn(1, function()
-        local e = ZoteroAPI.syncAllItems()
+    self.runtime:schedule(function() self:performSync(reset, automatic) end)
+end
 
-        if e == nil then
-            UIManager:show(InfoMessage:new{
-                text = _("Success."),
-                timeout = 3,
-                icon = "check"
-            })
-        else
-            UIManager:show(InfoMessage:new{
-                text = e,
-                timeout = 3,
-                icon = "notice-warning"
-            })
-        end
+---@param reset boolean
+---@param automatic boolean
+function Plugin:performSync(reset, automatic)
+    local progress = self.runtime:message(_("Synchronizing Zotero library. This might take some time."))
+    self.runtime:repaint()
+    local ok, err = pcall(function()
+        if reset then self.api.resetSyncState() end
+        return self.api.syncAllItems()
     end)
-
-    UIManager:show(InfoMessage:new{
-        text = _("Synchronizing Zotero library. This might take some time."),
-        timeout = 3,
-        icon = "notice-info"
-    })
-
+    self.runtime:close(progress)
+    self.api.endOperation()
+    self.browser:refresh()
+    if not ok or err then self.runtime:message(tostring(err), 5) return end
+    if not automatic then self.runtime:message(_("Success."), 3) end
 end
 
 return Plugin

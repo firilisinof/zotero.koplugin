@@ -1,0 +1,81 @@
+local JSON = require("json")
+local LuaSettings = require("luasettings")
+local lfs = require("libs/libkoreader-lfs")
+local util = require("util")
+
+local Util = {}
+
+--- Read a complete file, or nil when absent. Example: Util.read(path).
+---@param path string
+---@return string|nil
+function Util.read(path)
+    local file = io.open(path, "rb")
+    if not file then return nil end
+    local contents = file:read("*all")
+    file:close()
+    return contents
+end
+
+--- Replace a small metadata file atomically. Example: Util.write(path, "12").
+---@param path string
+---@param contents string
+---@return string|nil error
+function Util.write(path, contents)
+    local temporary = path .. ".tmp"
+    local file, err = io.open(temporary, "wb")
+    if not file then return "Could not write " .. temporary .. ": " .. tostring(err) end
+    local written, write_error = file:write(contents)
+    local closed, close_error = file:close()
+    if not written or not closed then
+        os.remove(temporary)
+        return "Could not finish " .. temporary .. ": " .. tostring(write_error or close_error)
+    end
+    local renamed, rename_error = os.rename(temporary, path)
+    if renamed then return nil end
+    os.remove(temporary)
+    return "Could not replace " .. path .. ": " .. tostring(rename_error)
+end
+
+--- Test for a regular file. Example: Util.isFile(path).
+---@param path string|nil
+---@return boolean
+function Util.isFile(path)
+    return path ~= nil and lfs.attributes(path, "mode") == "file"
+end
+
+--- Create storage parents. Example: Util.mkdir(path).
+---@param path string
+---@return boolean|nil, string|nil
+function Util.mkdir(path)
+    return util.makePath(path)
+end
+
+--- Open KOReader settings. Example: Util.openSettings(path).
+---@param path string
+---@return LuaSettings
+function Util.openSettings(path)
+    return LuaSettings:open(path)
+end
+
+--- Decode cached JSON. Example: Util.decode("{}").
+---@param contents string
+---@return table
+function Util.decode(contents)
+    return JSON.decode(contents)
+end
+
+--- Encode cache entries. Example: Util.encode(items).
+---@param entries table
+---@return string
+function Util.encode(entries)
+    return JSON.encode(entries)
+end
+
+--- Strip note markup and decode entities. Example: Util.plainText("<p>Read</p>").
+---@param html string
+---@return string
+function Util.plainText(html)
+    return util.htmlToPlainText(html)
+end
+
+return Util

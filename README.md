@@ -40,13 +40,17 @@ Open Settings → Configure Zotero account, select the library type, then enter 
 
 Switching the active library clears its cached metadata and last-sync timestamp. Synchronize to populate the selected library. Downloaded files and KOReader sidecars remain on disk. The original personal library keeps its existing paths, and other libraries have separate storage directories.
 
-The browser remembers each library's current collection or search, page and back history across closing, opening a document and restarting KOReader. Personal and group libraries have separate positions, including when their numeric IDs match. After switching libraries, a saved destination waits for that library's metadata to be synchronized again. Deleted collections fall back to an available previous view, and pages adjust when results shrink.
+Zotero home offers Continue reading, Collections, All items, On device and Search. Home opens this screen from any library view. Back restores the previous view and page, including the view you left with Home. The title identifies the current collection or search query. Continue reading reopens the last document successfully opened through Zotero in the active library, when its original local file is still present.
+
+Closing a document opened through Zotero with KOReader's Home, file-browser menu or end-of-book file-browser action returns to its source library view and page. KOReader saves reading progress normally. Documents opened outside Zotero retain their normal return behavior, even when the file is also in the Zotero library. The existing “Zotero Open” gesture continues to reopen the active library's saved view, including while reading.
+
+The browser remembers each library's current home, collection, all-items, on-device or search view, page and back history across closing, opening a document and restarting KOReader. Personal and group libraries have separate positions, including when their numeric IDs match. After switching libraries, a saved destination waits for that library's metadata to be synchronized again. Deleted collections fall back to an available previous view, and pages adjust when results shrink.
 
 ### Offline collections, notes and tags
 
 Tap an attachment to open its existing local copy immediately, even if its version marker is missing or older than the cached metadata. Opening a local copy needs neither a network connection nor credentials and does not replace the document or its sidecars. Removing credentials retains the recorded cache owner and storage path. Missing files still use the normal download flow and require credentials. Use an explicit collection download to update stale local copies.
 
-Choose “On device” at the browser root to see PDF and EPUB attachments in the active metadata cache whose files are present at their existing paths. This view respects the tag filter and includes local linked files. Search from this view stays limited to local files. Presence is checked on refresh, so removed files disappear and newly downloaded files appear. This view does not scan unrelated files or downloads from other libraries.
+Choose “On device” on Zotero home to see PDF and EPUB attachments in the active metadata cache whose files are present at their existing paths. This view respects the tag filter and includes local linked files. Search from this view stays limited to local files. Presence is checked on refresh, so removed files disappear and newly downloaded files appear. This view does not scan unrelated files or downloads from other libraries.
 
 Hold a collection row and choose “Download collection”. This downloads direct members only, excluding subcollections and respecting the current tag filter. Files already current are skipped. Tap the progress message to cancel. The final summary includes individual failures, and retrying skips successful downloads.
 
@@ -105,4 +109,4 @@ For a fixture-only UI smoke test, run the following from the built emulator's `k
 KO_HOME="$(mktemp -d /tmp/zotero-smoke.XXXXXX)" ./luajit /absolute/path/to/zotero.koplugin/tools/smoke-ui.lua
 ```
 
-The script opens the emulator, exercises the real dialogs and subprocess download flow, then opens KOReader's local PDF and EPUB test fixtures with credentials removed. It checks page restoration, library isolation, unchanged document bytes, and an existing PDF sidecar and reading position. Its temporary profile contains screenshots. It never uses your real Zotero credentials or contacts Zotero.
+The script opens the emulator, exercises the real dialogs and subprocess download flow, then opens KOReader's local PDF and EPUB test fixtures with credentials removed. It checks automatic library return through native reader controls, Home and Back, Continue reading, the Zotero Open event, ordinary document return, library isolation, unchanged document bytes, and PDF sidecars and reading progress. Its temporary profile contains screenshots. It never uses your real Zotero credentials or contacts Zotero.

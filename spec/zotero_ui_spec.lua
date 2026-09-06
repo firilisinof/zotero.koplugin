@@ -35,8 +35,8 @@ describe("Zotero feature UI", function()
         dialog.fields[2].text = "group-key"
         dialog.buttons[1][2].callback()
         assert.equals("groups/99", api.getLibraryPrefix())
-        assert.equals("collection", browser.current_view.kind)
-        assert.equals("All Items", browser.rows[1].text)
+        assert.equals("home", browser.current_view.kind)
+        assert.equals("Continue reading", browser.rows[1].text)
     end)
 
     it("leaves invalid account values open for correction", function()

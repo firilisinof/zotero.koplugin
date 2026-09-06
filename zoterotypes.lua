@@ -17,9 +17,18 @@
 ---@field collection boolean|nil
 ---@field downloaded boolean|nil
 ---@field on_device boolean|nil
+---@field destination 'collection'|'all'|'device'|nil
+---@field continue_reading boolean|nil
+---@field search boolean|nil
+---@field subtitle string|nil
+
+---@class ZoteroRecentDocument
+---@field key string
+---@field path string
+---@field title string
 
 ---@class ZoteroBrowserView
----@field kind 'collection'|'search'|'device'
+---@field kind 'home'|'all'|'collection'|'search'|'device'
 ---@field key string|nil
 ---@field query string|nil
 ---@field page integer|nil

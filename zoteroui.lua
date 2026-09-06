@@ -76,8 +76,25 @@ end
 
 --- Open an attachment in KOReader. Example: UI:openReader(path).
 ---@param path string
-function UI:openReader(path)
-    require("apps/reader/readerui"):showReader(path)
+---@param after_open function|nil
+function UI:openReader(path, after_open)
+    require("apps/reader/readerui"):showReader(path, nil, nil, nil, after_open)
+end
+
+--- Attach return behavior only after KOReader successfully opens a Zotero document. Example: UI:bindReaderReturn(reader, library, position).
+---@param reader table
+---@param library string
+---@param position ZoteroBrowserPosition
+function UI:bindReaderReturn(reader, library, position)
+    require("zoteroreader").bind(reader, function()
+        local plugin = require("pluginloader"):getPluginInstance("zotero")
+        if not plugin or not plugin.initialized then return end
+        plugin.api.saveBrowserPosition(library, position)
+        -- showFileManager has mounted a fresh plugin instance. Its browser owns
+        -- the return view, and an account changed in the reader stays isolated.
+        plugin.browser:restoreLibrary()
+        self:show(plugin.zotero_dialog)
+    end)
 end
 
 return UI

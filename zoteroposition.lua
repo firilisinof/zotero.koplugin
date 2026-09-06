@@ -3,17 +3,48 @@ local Position = {}
 ---@param view ZoteroBrowserView|nil
 ---@return ZoteroBrowserView
 local function copyView(view)
-    if type(view) ~= "table" then return { kind = "collection", page = 1 } end
+    if type(view) ~= "table" then return { kind = "home", page = 1 } end
     local page = tonumber(view.page) or 1
     if page < 1 or page ~= page or page == math.huge then page = 1 end
     local result = { kind = view.kind, page = math.floor(page) }
     if view.kind == "search" or view.kind == "device" then
         result.query = type(view.query) == "string" and view.query or ""
-    else
-        result.kind = "collection"
+    elseif view.kind == "collection" then
         result.key = type(view.key) == "string" and view.key or nil
+    elseif view.kind ~= "home" and view.kind ~= "all" then
+        result.kind = "home"
     end
     return result
+end
+
+--- Remember only successful plugin opens, separately for each library. Example: API.saveContinueReading(library, key, path).
+---@param api ZoteroAPI
+---@param library string
+---@param key string
+---@param path string
+function Position.saveContinueReading(api, library, key, path)
+    local recent = api.settings:readSetting("continue_reading")
+    if type(recent) ~= "table" then recent = {} end
+    recent[library] = { key = key, path = path }
+    api.settings:saveSetting("continue_reading", recent)
+    api.settings:flush()
+end
+
+--- Resolve a recent document against the active cache and actual file presence. Example: API.getContinueReading(library).
+---@param api ZoteroAPI
+---@param library string
+---@return ZoteroRecentDocument|nil
+function Position.getContinueReading(api, library)
+    if library ~= (api.getLocalLibraryPrefix() or "local") then return end
+    local recent = api.settings:readSetting("continue_reading")
+    local entry = type(recent) == "table" and recent[library]
+    if type(entry) ~= "table" or type(entry.key) ~= "string" or type(entry.path) ~= "string" then return end
+    if api.getLocalAttachmentPath(entry.key) ~= entry.path then return end
+    local item = api.getItems()[entry.key]
+    local parent = api.getItems()[item.data.parentItem]
+    local title = parent and parent.data and parent.data.title or item.data.title
+    if type(title) ~= "string" or not title:find("%S") then title = item.data.filename end
+    return { key = entry.key, path = entry.path, title = title }
 end
 
 ---@param position ZoteroBrowserPosition|nil

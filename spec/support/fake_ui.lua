@@ -34,7 +34,13 @@ function FakeUI:wrap(callback) self.wraps = self.wraps + 1 return callback() end
 function FakeUI:run(task) return self.runner:run(task) end
 function FakeUI:isOnline() return self.online end
 function FakeUI:now() return self.clock end
-function FakeUI:openReader(path) self.opened_path = path end
+function FakeUI:openReader(path, after_open)
+    self.opened_path = path
+    if after_open then after_open({}) end
+end
+function FakeUI:bindReaderReturn(reader, library, position)
+    self.reader_return = { reader = reader, library = library, position = position }
+end
 
 function FakeUI:message(text, timeout)
     local widget = self.InfoMessage:new{ text = text, timeout = timeout }
@@ -52,8 +58,8 @@ end
 
 function FakeUI:newBrowser(Browser, api)
     return setmetatable({ api = api, runtime = self, paths = {},
-        current_view = { kind = "collection" }, close_callback = function() end,
-        switchItemTable = function(browser, title, rows) browser.rows = rows end,
+        current_view = { kind = "home" }, close_callback = function() end,
+        switchItemTable = function(browser, title, rows) browser.title, browser.rows = title, rows end,
     }, { __index = Browser })
 end
 

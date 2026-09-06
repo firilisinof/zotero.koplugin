@@ -374,13 +374,16 @@ describe("Zotero API client", function()
             assert.is_not_nil(ZoteroAPI.getItems()["PARENT01"])
         end)
 
-        it("records the library version reported by the collections fetch", function()
+        it("records the earlier of the two reported library versions", function()
+            -- The items fetch reports 1214 and the collections fetch 1240.
+            -- Storing 1240 would make the next sync ask for changes since then
+            -- and permanently miss anything modified in between.
             set_credentials()
             stub_full_sync()
 
             assert.is_nil(ZoteroAPI.syncAllItems())
 
-            assert.is_equal("1240", ZoteroAPI.getLibraryVersion())
+            assert.is_equal("1214", ZoteroAPI.getLibraryVersion())
         end)
 
         it("asks the server only for changes since the stored version", function()
@@ -410,6 +413,22 @@ describe("Zotero API client", function()
 
             assert.is_equal("Attention Is All You Need", reloaded.getItems()["PARENT01"].data.title)
             assert.is_equal("Papers", reloaded.getCollections()["COLLAAA1"].data.name)
+        end)
+    end)
+
+    describe("earlierVersion", function()
+        it("picks the lower of two versions", function()
+            assert.is_equal("1214", ZoteroAPI.earlierVersion("1214", "1240"))
+            assert.is_equal("1214", ZoteroAPI.earlierVersion("1240", "1214"))
+        end)
+
+        it("compares numerically rather than as text", function()
+            assert.is_equal("99", ZoteroAPI.earlierVersion("99", "100"))
+        end)
+
+        it("falls back to whichever version is present", function()
+            assert.is_equal("1240", ZoteroAPI.earlierVersion(nil, "1240"))
+            assert.is_equal("1214", ZoteroAPI.earlierVersion("1214", nil))
         end)
     end)
 

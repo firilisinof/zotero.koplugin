@@ -82,18 +82,16 @@ describe("Zotero API client", function()
 
     -- Serves both paginated collections a full sync walks through.
     local function stub_full_sync()
-        fake:on("HEAD", "/items%?", { headers = { ["total-results"] = "150" } })
         fake:on("GET", "/items%?.*start=0$", {
-            headers = { ["last-modified-version"] = "1214" },
+            headers = { ["total-results"] = "150", ["last-modified-version"] = "1214" },
             body = Fixtures.raw("items_page1.json"),
         })
         fake:on("GET", "/items%?.*start=100$", {
-            headers = { ["last-modified-version"] = "1214" },
+            headers = { ["total-results"] = "150", ["last-modified-version"] = "1214" },
             body = Fixtures.raw("items_page2.json"),
         })
-        fake:on("HEAD", "/collections%?", { headers = { ["total-results"] = "3" } })
         fake:on("GET", "/collections%?.*start=0$", {
-            headers = { ["last-modified-version"] = "1240" },
+            headers = { ["total-results"] = "3", ["last-modified-version"] = "1240" },
             body = Fixtures.raw("collections.json"),
         })
     end
@@ -212,59 +210,21 @@ describe("Zotero API client", function()
         end)
     end)
 
-    describe("fetchCollectionSize", function()
-        it("reads the total-results header", function()
-            fake:on("HEAD", "/items", { headers = { ["total-results"] = "42" } })
-
-            local size, e = ZoteroAPI.fetchCollectionSize("https://api.zotero.org/users/4242/items", {})
-
-            assert.is_nil(e)
-            assert.is_equal(42, size)
-        end)
-
-        it("fails when the header is missing", function()
-            fake:on("HEAD", "/items", { headers = {} })
-
-            local size, e = ZoteroAPI.fetchCollectionSize("https://api.zotero.org/users/4242/items", {})
-
-            assert.is_nil(size)
-            assert.is_equal("Error: could not determine number of items in library", e)
-        end)
-
-        it("propagates a transport failure", function()
-            fake:on("HEAD", "/items", { error = "connection refused" })
-
-            local size, e = ZoteroAPI.fetchCollectionSize("https://api.zotero.org/users/4242/items", {})
-
-            assert.is_nil(size)
-            assert.is_equal("Error: connection refused", e)
-        end)
-
-        it("propagates an unsuccessful status code", function()
-            fake:on("HEAD", "/items", { code = 403, headers = {} })
-
-            local size, e = ZoteroAPI.fetchCollectionSize("https://api.zotero.org/users/4242/items", {})
-
-            assert.is_nil(size)
-            assert.is_equal("Error: API responded with status code 403", e)
-        end)
-    end)
-
     describe("socket timeouts", function()
         local socketutil = require("socketutil")
 
         it("restores the default timeout after a request", function()
-            fake:on("HEAD", "/items", { headers = { ["total-results"] = "1" } })
+            fake:on("GET", "/items", { headers = { ["total-results"] = "0" }, body = "[]" })
 
-            ZoteroAPI.fetchCollectionSize("https://api.zotero.org/users/4242/items", {})
+            ZoteroAPI.fetchCollectionPaginated("https://api.zotero.org/users/4242/items?since=0", {})
 
             assert.is_equal(socketutil.DEFAULT_BLOCK_TIMEOUT, socketutil.block_timeout)
         end)
 
         it("restores the default timeout even when the request fails", function()
-            fake:on("HEAD", "/items", { error = "connection refused" })
+            fake:on("GET", "/items", { error = "connection refused" })
 
-            ZoteroAPI.fetchCollectionSize("https://api.zotero.org/users/4242/items", {})
+            ZoteroAPI.fetchCollectionPaginated("https://api.zotero.org/users/4242/items?since=0", {})
 
             assert.is_equal(socketutil.DEFAULT_BLOCK_TIMEOUT, socketutil.block_timeout)
         end)
@@ -291,8 +251,10 @@ describe("Zotero API client", function()
         local URL = "https://api.zotero.org/users/4242/items?since=0"
 
         it("returns every entry when given no callback", function()
-            fake:on("HEAD", "/items%?", { headers = { ["total-results"] = "5" } })
-            fake:on("GET", "/items%?", { body = Fixtures.raw("items_page1.json") })
+            fake:on("GET", "/items%?", {
+                headers = { ["total-results"] = "5" },
+                body = Fixtures.raw("items_page1.json"),
+            })
 
             local items, e = ZoteroAPI.fetchCollectionPaginated(URL, {})
 
@@ -302,21 +264,48 @@ describe("Zotero API client", function()
         end)
 
         it("requests one page per hundred entries", function()
-            fake:on("HEAD", "/items%?", { headers = { ["total-results"] = "150" } })
-            fake:on("GET", "/items%?.*start=0$", { body = Fixtures.raw("items_page1.json") })
-            fake:on("GET", "/items%?.*start=100$", { body = Fixtures.raw("items_page2.json") })
+            fake:on("GET", "/items%?.*start=0$", {
+                headers = { ["total-results"] = "150" },
+                body = Fixtures.raw("items_page1.json"),
+            })
+            fake:on("GET", "/items%?.*start=100$", {
+                headers = { ["total-results"] = "150" },
+                body = Fixtures.raw("items_page2.json"),
+            })
 
             local items, e = ZoteroAPI.fetchCollectionPaginated(URL, {})
 
             assert.is_nil(e)
             assert.is_equal(10, #items)
-            assert.is_equal(2, fake:callCount("&start="))
+            assert.is_equal(2, fake:callCount())
+        end)
+
+        it("does not ask for a page past the end of an exact multiple", function()
+            fake:on("GET", "/items%?", {
+                headers = { ["total-results"] = "100" },
+                body = Fixtures.raw("items_page1.json"),
+            })
+
+            ZoteroAPI.fetchCollectionPaginated(URL, {})
+
+            assert.is_equal(1, fake:callCount())
+        end)
+
+        it("reads the collection size from the page itself", function()
+            fake:on("GET", "/items%?", { headers = { ["total-results"] = "0" }, body = "[]" })
+
+            local items, e = ZoteroAPI.fetchCollectionPaginated(URL, {})
+
+            assert.is_nil(e)
+            assert.are.same({}, items)
+            -- No separate HEAD request to size the collection first.
+            assert.is_equal(1, fake:callCount())
+            assert.is_equal("GET", fake.calls[1].method)
         end)
 
         it("hands each page to the callback and returns the library version", function()
-            fake:on("HEAD", "/items%?", { headers = { ["total-results"] = "5" } })
             fake:on("GET", "/items%?", {
-                headers = { ["last-modified-version"] = "1214" },
+                headers = { ["total-results"] = "5", ["last-modified-version"] = "1214" },
                 body = Fixtures.raw("items_page1.json"),
             })
 
@@ -332,8 +321,10 @@ describe("Zotero API client", function()
         end)
 
         it("reports malformed JSON", function()
-            fake:on("HEAD", "/items%?", { headers = { ["total-results"] = "1" } })
-            fake:on("GET", "/items%?", { body = "<html>gateway timeout</html>" })
+            fake:on("GET", "/items%?", {
+                headers = { ["total-results"] = "1" },
+                body = "<html>gateway timeout</html>",
+            })
 
             local items, e = ZoteroAPI.fetchCollectionPaginated(URL, {})
 
@@ -341,13 +332,31 @@ describe("Zotero API client", function()
             assert.is_equal("Error: failed to parse JSON in response", e)
         end)
 
-        it("propagates a failure while determining the size", function()
-            fake:on("HEAD", "/items%?", { error = "connection refused" })
+        it("reports a page without a usable size", function()
+            fake:on("GET", "/items%?", { headers = {}, body = "[]" })
+
+            local items, e = ZoteroAPI.fetchCollectionPaginated(URL, {})
+
+            assert.is_nil(items)
+            assert.is_equal("Error: could not determine number of items in library", e)
+        end)
+
+        it("propagates a transport failure without touching the missing headers", function()
+            fake:on("GET", "/items%?", { error = "connection refused" })
 
             local items, e = ZoteroAPI.fetchCollectionPaginated(URL, {})
 
             assert.is_nil(items)
             assert.is_equal("Error: connection refused", e)
+        end)
+
+        it("propagates an unsuccessful status code", function()
+            fake:on("GET", "/items%?", { code = 403, headers = {}, body = "" })
+
+            local items, e = ZoteroAPI.fetchCollectionPaginated(URL, {})
+
+            assert.is_nil(items)
+            assert.is_equal("Error: API responded with status code 403", e)
         end)
     end)
 
@@ -383,15 +392,14 @@ describe("Zotero API client", function()
 
         it("drops items whose deleted flag is a boolean rather than 1", function()
             set_credentials()
-            fake:on("HEAD", "/items%?", { headers = { ["total-results"] = "1" } })
             fake:on("GET", "/items%?", {
+                headers = { ["total-results"] = "1" },
                 body = [==[
                     [{"key":"GONE0001","version":9,
                       "data":{"key":"GONE0001","version":9,"itemType":"note","deleted":true}}]
                 ]==],
             })
-            fake:on("HEAD", "/collections%?", { headers = { ["total-results"] = "0" } })
-            fake:on("GET", "/collections%?", { body = "[]" })
+            fake:on("GET", "/collections%?", { headers = { ["total-results"] = "0" }, body = "[]" })
 
             assert.is_nil(ZoteroAPI.syncAllItems())
 
@@ -401,10 +409,8 @@ describe("Zotero API client", function()
         it("keeps items that were synced earlier", function()
             set_credentials()
             load_library()
-            fake:on("HEAD", "/items%?", { headers = { ["total-results"] = "0" } })
-            fake:on("GET", "/items%?", { body = "[]" })
-            fake:on("HEAD", "/collections%?", { headers = { ["total-results"] = "0" } })
-            fake:on("GET", "/collections%?", { body = "[]" })
+            fake:on("GET", "/items%?", { headers = { ["total-results"] = "0" }, body = "[]" })
+            fake:on("GET", "/collections%?", { headers = { ["total-results"] = "0" }, body = "[]" })
 
             assert.is_nil(ZoteroAPI.syncAllItems())
 
@@ -435,7 +441,7 @@ describe("Zotero API client", function()
 
         it("propagates an error from the items fetch", function()
             set_credentials()
-            fake:on("HEAD", "/items%?", { error = "connection refused" })
+            fake:on("GET", "/items%?", { error = "connection refused" })
 
             assert.is_equal("Error: connection refused", ZoteroAPI.syncAllItems())
         end)

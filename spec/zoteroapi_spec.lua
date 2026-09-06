@@ -641,20 +641,68 @@ describe("Zotero API client", function()
 
     describe("buildSearchPattern", function()
         it("escapes pattern characters", function()
-            assert.is_equal(".*ben%-kiki.*", ZoteroAPI.buildSearchPattern("Ben-Kiki"))
-            assert.is_equal(".*50%%.*", ZoteroAPI.buildSearchPattern("50%"))
+            assert.is_equal("ben%-kiki", ZoteroAPI.buildSearchPattern("Ben-Kiki"))
+            assert.is_equal("50%%", ZoteroAPI.buildSearchPattern("50%"))
         end)
 
         it("joins words with a gap", function()
-            assert.is_equal(".*one.*two.*", ZoteroAPI.buildSearchPattern("one two"))
+            assert.is_equal("one.*two", ZoteroAPI.buildSearchPattern("one two"))
         end)
 
         it("collapses runs of whitespace", function()
-            assert.is_equal(".*one.*two.*", ZoteroAPI.buildSearchPattern("  one   two  "))
+            assert.is_equal("one.*two", ZoteroAPI.buildSearchPattern("  one   two  "))
         end)
 
-        it("matches everything for an empty query", function()
-            assert.is_equal(".*.*", ZoteroAPI.buildSearchPattern(""))
+        it("stays unanchored rather than wrapping in .*", function()
+            -- A leading ".*" matches the same strings but backtracks from every
+            -- position, which dominated the cost of a search.
+            assert.is_equal("", ZoteroAPI.buildSearchPattern(""))
+            assert.is_truthy(string.match("a paper about cats", ZoteroAPI.buildSearchPattern("paper")))
+            assert.is_truthy(string.match("anything at all", ZoteroAPI.buildSearchPattern("")))
+        end)
+    end)
+
+    describe("attachments with an unusable parent", function()
+        it("hides an orphaned attachment from collection listings", function()
+            ZoteroAPI.setItems({
+                ORPHAN01 = { key = "ORPHAN01", version = 1, meta = {},
+                    data = { key = "ORPHAN01", itemType = "attachment",
+                             linkMode = "imported_file", contentType = "application/pdf",
+                             filename = "orphan.pdf", title = "Orphaned Attachment",
+                             parentItem = "MISSING1", collections = { "COLLAAA1" } } },
+            })
+            ZoteroAPI.setCollections(keyed(Fixtures.decode("collections.json")))
+
+            assert.are.same({ "Subfolder/" }, texts_of(ZoteroAPI.displayCollection("COLLAAA1")))
+        end)
+
+        it("still finds an orphaned attachment by its own title", function()
+            ZoteroAPI.setItems({
+                ORPHAN01 = { key = "ORPHAN01", version = 1, meta = {},
+                    data = { key = "ORPHAN01", itemType = "attachment",
+                             linkMode = "imported_file", contentType = "application/pdf",
+                             filename = "orphan.pdf", title = "Orphaned Attachment",
+                             parentItem = "MISSING1", collections = { "COLLAAA1" } } },
+            })
+
+            assert.are.same(
+                { "Orphaned Attachment" },
+                texts_of(ZoteroAPI.displaySearchResults("orphaned"))
+            )
+        end)
+
+        it("does not crash when the parent belongs to no collection", function()
+            ZoteroAPI.setItems({
+                P = { key = "P", version = 1, meta = { creatorSummary = "Author" },
+                      data = { key = "P", itemType = "journalArticle", title = "Untitled" } },
+                A = { key = "A", version = 1, meta = {},
+                      data = { key = "A", itemType = "attachment", linkMode = "imported_file",
+                               contentType = "application/pdf", filename = "a.pdf",
+                               parentItem = "P" } },
+            })
+            ZoteroAPI.setCollections(keyed(Fixtures.decode("collections.json")))
+
+            assert.has_no_error(function() ZoteroAPI.displayCollection("COLLAAA1") end)
         end)
     end)
 

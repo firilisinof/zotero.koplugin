@@ -2,11 +2,9 @@ local BaseUtil = require("ffi/util")
 local LuaSettings = require("luasettings")
 local http = require("socket.http")
 local ltn12 = require("ltn12")
-local https = require("ssl.https")
 local socketutil = require("socketutil")
 local JSON = require("json")
 local lfs = require("libs/libkoreader-lfs")
-local DocSettings = require("docsettings")
 local sha2 = require("ffi/sha2")
 
 -- Functions expect config parameter, a lua table with the following keys:
@@ -72,6 +70,11 @@ end
 function API.init(zotero_dir)
     print("Z: initializing API")
     API.zotero_dir = zotero_dir
+
+    -- Drop anything parsed from a previously configured directory, so a second
+    -- init does not serve the old library.
+    API.items = nil
+    API.collections = nil
     local settings_path = BaseUtil.joinPath(API.zotero_dir, "meta.lua")
     print(settings_path)
     API.settings = LuaSettings:open(settings_path)
@@ -175,18 +178,8 @@ function API.checkWebDAV()
     end
 end
 
--- List of zotero items that need to be synced to the server.  Items that are
--- modified will have a "key" property, new items will not carry this property.
-function API.getModifiedItems()
-    if API.modified_items == nil then
-        API.modified_items = API.settings:readSetting("modified_items", {})
-    end
-
-    return API.modified_items
-end
-
-
--- This just syncs them to disk, it will not modify the Zotero collection!
+-- Writes pending settings changes to disk. It will not modify the Zotero
+-- collection.
 function API.saveModifiedItems()
     API.settings:flush()
 end
@@ -408,12 +401,6 @@ function API.syncAllItems()
     API.settings:flush()
 
     return nil
-end
-
--- If a tag is set, ensure all entries actually have that tag and it has not been removed
--- If no tag is set, just remove all deleted entries from the library
-function API.purgeEntries()
-
 end
 
 function API.getDirAndPath(attachmentKey)
@@ -711,9 +698,6 @@ function API.addTimezone(timestamp)
     return os.date("!%Y-%m-%dT%H:%M:%SZ", os.time(time))
 end
 
-function API.localTimezone(timestamp)
-end
-
 function API.compareTimestamps(zoteroTimestamp, koreaderTimestamp)
     local a,b = zoteroTimestamp, API.addTimezone(koreaderTimestamp)
 
@@ -724,10 +708,6 @@ function API.compareTimestamps(zoteroTimestamp, koreaderTimestamp)
     else
         return 1
     end
-end
-
-function API.syncModifiedItems()
-    local modItems = API.getModifiedItems()
 end
 
 function API.resetSyncState()

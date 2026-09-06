@@ -536,8 +536,15 @@ function API.downloadWebDAV(key, targetDir, targetPath)
         return nil, "Download failed with status code " .. c
     end
 
-    -- Zotero WebDAV storage packs documents inside a zipfile
-    local zip_cmd = "unzip -qq '" .. zipPath .. "' -d '" .. targetDir .. "'"
+    -- Zotero WebDAV storage packs documents inside a zipfile.
+    --
+    -- -o overwrites the copy an earlier download left behind. Without it unzip
+    -- stops to ask whether to replace the file and waits on stdin, which never
+    -- answers on a reader, so the whole app hangs.
+    --
+    -- The redirect is a second line of defence: any other prompt, such as the
+    -- password an encrypted archive asks for, then fails instead of blocking.
+    local zip_cmd = "unzip -qq -o '" .. zipPath .. "' -d '" .. targetDir .. "' < /dev/null"
     print("Unzipping with " .. zip_cmd)
     local zip_result = os.execute(zip_cmd)
     os.remove(zipPath)
@@ -546,6 +553,14 @@ function API.downloadWebDAV(key, targetDir, targetPath)
     -- number. Every number is truthy, zero included, so this has to compare.
     if zip_result ~= 0 then
         return nil, "Unzipping failed"
+    end
+
+    -- The archive is expected to hold the attachment under the filename Zotero
+    -- recorded. If it does not, say so rather than handing back a path to
+    -- nothing.
+    if not file_exists(targetPath) then
+        local filename = targetPath:match("[^/]+$") or targetPath
+        return nil, "The archive did not contain a file named '" .. filename .. "'"
     end
 
     return targetPath

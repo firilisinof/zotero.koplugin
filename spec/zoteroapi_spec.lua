@@ -936,17 +936,16 @@ describe("Zotero API client", function()
             assert.is_equal("1300", file_contents(attachment_dir .. "/version"))
         end)
 
-        it("reports an archive that does not hold the expected filename", function()
+        it("extracts under the recorded filename even when the entry is named differently", function()
+            -- The archive holds "some-other-name.pdf", which used to leave the
+            -- attachment unreachable under the name Zotero recorded.
             fake:on("GET", ZIP_URL, { body = Fixtures.raw("attachment_misnamed.zip") })
 
             local path, e = ZoteroAPI.downloadAndGetPath("ATTACH01")
 
-            assert.is_nil(path)
-            assert.is_equal(
-                "The archive did not contain a file named " ..
-                "'Vaswani et al. - 2017 - Attention Is All You Need.pdf'",
-                e
-            )
+            assert.is_nil(e)
+            assert.is_equal(attachment_path, path)
+            assert.is_equal("%PDF-1.4 pretend", file_contents(path))
         end)
 
         it("reports an archive it cannot unpack", function()
@@ -955,7 +954,7 @@ describe("Zotero API client", function()
             local path, e = ZoteroAPI.downloadAndGetPath("ATTACH01")
 
             assert.is_nil(path)
-            assert.is_equal("Unzipping failed", e)
+            assert.is_truthy(e:find("Could not open the downloaded archive", 1, true))
         end)
 
         it("deletes the archive even when unpacking fails", function()
@@ -981,6 +980,14 @@ describe("Zotero API client", function()
 
             assert.is_nil(path)
             assert.is_equal("Download failed with status code 404", e)
+        end)
+
+        it("leaves no archive behind after a failed download", function()
+            fake:on("GET", ZIP_URL, { code = 404, body = "" })
+
+            ZoteroAPI.downloadAndGetPath("ATTACH01")
+
+            assert.is_nil(lfs.attributes(attachment_dir .. "/ATTACH01.zip"))
         end)
 
         it("reports a missing WebDAV url", function()

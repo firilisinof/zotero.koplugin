@@ -23,7 +23,7 @@ ifneq ($(GNU_PATH),)
 export PATH := $(GNU_PATH):$(PATH)
 endif
 
-.PHONY: help setup link unlink build run test
+.PHONY: help setup link unlink build run test package
 
 help:
 	@echo "make setup   Install prerequisites, clone and build KOReader, link this plugin"
@@ -32,6 +32,7 @@ help:
 	@echo "make build   Rebuild the KOReader emulator"
 	@echo "make run     Launch the emulator with the plugin loaded"
 	@echo "make test    Run the plugin specs"
+	@echo "make package Create dist/zotero.koplugin.zip for installation"
 	@echo ""
 	@echo "KOREADER_SRC = $(KOREADER_SRC)"
 
@@ -59,6 +60,9 @@ run: link check-koreader
 
 test: link check-koreader
 	cd $(KOREADER_SRC) && ./kodev test front $(SPEC_NAMES)
+
+package:
+	sh ./tools/package.sh
 
 .PHONY: check-koreader
 check-koreader:

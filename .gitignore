@@ -2,5 +2,8 @@
 *.orig
 *.rej
 
+# Installable plugin archives and temporary packaging files.
+/dist/
+
 # Captured from a real library by tools/fetch-fixtures.sh, contains real metadata.
 spec/fixtures/live/

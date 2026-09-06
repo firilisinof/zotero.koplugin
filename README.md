@@ -21,9 +21,12 @@ This addon for [KOReader](https://github.com/koreader/koreader) allows you to vi
 
 ## Installation Guide
 
-1. Copy the files in this repository to `<KOReader>/plugins/zotero.koplugin`
-2. Obtain an API token for your account by generating a new key in your [Zotero Settings](https://www.zotero.org/settings/keys). Note the userID and the private key.
-3. Set your credentials for Zotero either directly in KOReader or edit the configuration file as described [below](#manual-configuration).
+1. Run `make package` to create `dist/zotero.koplugin.zip`.
+2. Close KOReader, extract the ZIP and copy its `zotero.koplugin` folder into `<KOReader>/plugins/`, then restart KOReader.
+3. Obtain an API token for your account by generating a new key in your [Zotero Settings](https://www.zotero.org/settings/keys). Note the userID and the private key.
+4. Set your credentials for Zotero either directly in KOReader or edit the configuration file as described [below](#manual-configuration).
+
+Packaging requires `make`, a POSIX shell and `zip`. It includes the current working tree's top-level Lua files and license, and runs independently of the KOReader build and test suite. Run `make test` before distributing a package. When updating, replace the plugin files while preserving the separate `<KOReader>/zotero` data directory and document sidecars.
 
 In KOReader, the Zotero plugin will be visible in the search tab (magnifying glass icon) inside the top menu.
 

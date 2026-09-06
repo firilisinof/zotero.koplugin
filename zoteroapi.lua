@@ -523,13 +523,15 @@ function API.downloadWebDAV(key, targetDir, targetPath)
     local zip_cmd = "unzip -qq '" .. zipPath .. "' -d '" .. targetDir .. "'"
     print("Unzipping with " .. zip_cmd)
     local zip_result = os.execute(zip_cmd)
-    if zip_result then
-        return targetPath
-    else
+    os.remove(zipPath)
+
+    -- LuaJIT follows Lua 5.1, where os.execute returns the exit status as a
+    -- number. Every number is truthy, zero included, so this has to compare.
+    if zip_result ~= 0 then
         return nil, "Unzipping failed"
     end
 
-    local remove_result = os.remove(zipPath)
+    return targetPath
 end
 
 function API.getWebDAVHeaders()

@@ -13,10 +13,11 @@ local FIXTURE_DIR = this_file:gsub("support[/\\][^/\\]+$", "fixtures/")
 
 local Fixtures = {}
 
---- The raw JSON text of a fixture, as the API would have sent it.
+--- The raw bytes of a fixture, as the server would have sent them.
+-- Opened in binary mode so the zip fixtures survive the round trip.
 function Fixtures.raw(name)
     local path = FIXTURE_DIR .. name
-    local f = assert(io.open(path, "r"), "could not open fixture " .. path)
+    local f = assert(io.open(path, "rb"), "could not open fixture " .. path)
     local content = f:read("*all")
     f:close()
     return content

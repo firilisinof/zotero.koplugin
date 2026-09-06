@@ -181,25 +181,31 @@ function Plugin:init()
     self.initialized = false
     self:onDispatcherRegisterActions()
     self.ui.menu:registerToMainMenu(self)
-    xpcall(self.initAPIAndBrowser, self.initError, self)
+
+    -- pcall rather than xpcall: an xpcall handler receives the error message as
+    -- its first argument, so passing a method here made the message arrive in
+    -- place of self and the handler itself raised.
+    local ok, err = pcall(self.initAPIAndBrowser, self)
+    if not ok then
+        print("Z: could not initialize: " .. tostring(err))
+        return
+    end
+
     self.initialized = true
     print("Z: successfully initialized!")
 end
 
-function Plugin:initError(e)
-    print("Could not initialize Zotero: " .. e)
-end
-
 function Plugin:checkInitialized()
-    if not self.initialized  or self.browser == nil then
+    if not self.initialized or self.browser == nil then
         UIManager:show(InfoMessage:new{
-            text = _("Zotero not initialized. Please set the plugin directory first."),
+            text = _("Zotero could not be initialized. Check the KOReader log for details."),
             timeout = 3,
             icon = "notice-warning"
         })
+        return false
     end
 
-    return self.initialized
+    return true
 end
 
 function Plugin:initAPIAndBrowser()

@@ -348,6 +348,16 @@ function API.getHeaders(api_key)
     }
 end
 
+-- Returns whichever of the two library versions is earlier, so a sync never
+-- claims to have seen changes it did not fetch.
+function API.earlierVersion(a, b)
+    local na, nb = tonumber(a), tonumber(b)
+    if na == nil then return b end
+    if nb == nil then return a end
+
+    return (na <= nb) and a or b
+end
+
 function API.syncAllItems()
     local since = API.getLibraryVersion()
 
@@ -362,7 +372,7 @@ function API.syncAllItems()
     -- Sync library items
     local items = API.getItems()
     print("loaded items: " .. #items)
-    local r, e = API.fetchCollectionPaginated(items_url, headers, function(partial_entries)
+    local items_version, e = API.fetchCollectionPaginated(items_url, headers, function(partial_entries)
         print("Received callback, processing entries: " .. #partial_entries)
         for i = 1, #partial_entries do
             -- Ruthlessly update our local items
@@ -383,7 +393,7 @@ function API.syncAllItems()
 
     -- Sync library collections
     local collections = API.getCollections()
-    local r, e = API.fetchCollectionPaginated(collections_url, headers, function(partial_entries)
+    local collections_version, e = API.fetchCollectionPaginated(collections_url, headers, function(partial_entries)
         print("Received callback, processing entries: " .. #partial_entries)
         for i = 1, #partial_entries do
             -- Ruthlessly update our local items
@@ -399,7 +409,9 @@ function API.syncAllItems()
     if e ~= nil then return e end
     API.setCollections(collections)
 
-    API.setLibraryVersion(r)
+    -- Each fetch reports the library version at the moment it ran. Storing the
+    -- later one would skip anything modified in between, so keep the earlier.
+    API.setLibraryVersion(API.earlierVersion(items_version, collections_version))
     API.settings:flush()
 
     return nil

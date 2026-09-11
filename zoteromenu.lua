@@ -51,6 +51,9 @@ local function settingsEntries(plugin)
         entry(plugin, _("Items per page"), function() plugin:setItemsPerPage() end),
     }
     for _, item in ipairs(webdavEntries(plugin)) do table.insert(entries, item) end
+    table.insert(entries, { text = _("Share reading position"),
+        checked_func = function() return plugin.api.progress and plugin.api.progress:enabled() or false end,
+        callback = function() plugin.api.progress:safe("toggle") end })
     return entries
 end
 
@@ -65,6 +68,9 @@ function Menus:addToMainMenu(menu_items)
             entry(self, _("Resync entire collection"), function() self:onZoteroSyncAction(true) end),
         } },
         { text = _("Settings"), sub_item_table = settingsEntries(self) },
+        entry(self, _("Sync position now"), function() self.api.progress:safe("sync", true) end),
+        { text_func = function() return self.api.progress and self.api.progress:statusText() or _("Position sharing is off") end,
+            enabled = false },
     } }
 end
 

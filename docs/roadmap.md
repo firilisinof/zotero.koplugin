@@ -1,6 +1,6 @@
 # Roadmap
 
-The six cheap wins are implemented. The plugin remains read-only and needs no new Zotero write permissions. Highlight sync is documented below and is not being attempted.
+The six cheap wins and opt-in PDF/EPUB reading-position sharing are implemented. Metadata access stays read-only; enabled position sharing writes native Zotero synced settings. See [position sharing](position-sharing.md) for validation and limits. Annotation synchronization remains future work.
 
 ## Implemented cheap wins
 
@@ -68,10 +68,7 @@ under `annotations`. The entry shape is built in
    `datetime` is stable and is the natural local id. The map belongs in
    something like `zotero/annotations/<attachmentKey>.json` rather than the
    sidecar, because sidecars get wiped and Zotero keys are library state.
-3. **Write permission.** The configured API key is very likely read-only.
-   `GET /keys/current` reports the key's permissions, and the account dialog
-   should check it, because a 403 in the middle of a sync is a bad way to find
-   out.
+3. **Write permission.** Position sharing now checks personal-library write access with `GET /keys/current`. Annotation writes must additionally check access to the actual attachment library, especially for groups.
 4. **Colors.** KOReader has nine named highlight colors
    (`frontend/apps/reader/modules/readerhighlight.lua:29`) and Zotero has eight
    fixed hex values. A static name to hex table with a yellow fallback covers
@@ -93,14 +90,6 @@ It means mapping a `DocFragment` index back to its spine item and a node path to
 CFI steps, through crengine's own DOM normalization, and being exact, since a
 near miss puts the highlight in the wrong paragraph.
 
-The pragmatic alternative, if EPUB highlights are ever wanted, is to push them
-as a child **note** item instead of annotations. One HTML note per book holding
-the quotes, comments and chapter titles. It appears in Zotero, it is searchable,
-it cannot desync, and it costs a fraction of the effort. It does not produce
-highlights in Zotero's reader.
+The position resolver now implements this conversion for supported locations and validates endpoint pairs against real crengine and Zotero's installed CFI implementation. Highlights can reuse those endpoints, attachment identity, transport and durable storage primitives. They still need stable annotation IDs, duplicate prevention, edit/delete reconciliation and tests of complete ranges. PDF highlights additionally need coordinate and rectangle conversion.
 
-### The ceiling
-
-For PDFs, "highlight on the device, see it in Zotero after a sync" is reachable.
-For EPUBs, quotes in Zotero are reachable and real highlights are a separate
-project.
+The current release does not synchronize annotations. Endpoint interoperability is a foundation, not a complete annotation merge protocol.

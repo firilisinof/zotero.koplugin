@@ -1,0 +1,34 @@
+local UI = require("spec.support.fake_ui")
+local Runtime = {}
+Runtime.__index = Runtime
+setmetatable(Runtime, { __index = UI })
+
+function Runtime.new()
+    local self = UI.new()
+    self.jobs, self.timers = {}, {}
+    return setmetatable(self, Runtime)
+end
+
+function Runtime:readProgress() return self.existing end
+function Runtime:later(delay, task) self.timers[task] = self.clock + delay end
+function Runtime:unschedule(task) self.timers[task] = nil end
+function Runtime:background(task, callback)
+    local job = { task = task, callback = callback }
+    table.insert(self.jobs, job)
+    return function()
+        if not job.done then job.done = true; callback({ error = "Interrupted", delay = 0 }) end
+    end
+end
+function Runtime:work()
+    local job = table.remove(self.jobs, 1)
+    assert(job, "No background job queued")
+    if not job.done then job.done = true; job.callback(job.task()) end
+end
+function Runtime:advance(seconds)
+    self.clock = self.clock + seconds
+    local due = {}
+    for task, time in pairs(self.timers) do if time <= self.clock then table.insert(due, task) end end
+    for _, task in ipairs(due) do self.timers[task] = nil; task() end
+end
+
+return Runtime

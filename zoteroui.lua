@@ -74,6 +74,35 @@ function UI:now()
     return os.time()
 end
 
+--- Schedule a progress checkpoint without blocking input. Example: UI:later(2, callback).
+---@param seconds number
+---@param callback function
+function UI:later(seconds, callback)
+    UIManager:scheduleIn(seconds, callback)
+end
+
+--- Cancel a pending checkpoint. Example: UI:unschedule(callback).
+---@param callback function
+function UI:unschedule(callback)
+    UIManager:unschedule(callback)
+end
+
+--- Execute network work in a non-modal child. Example: UI:background(task, callback).
+---@param task function
+---@param callback function
+---@return function
+function UI:background(task, callback)
+    return require("zoteroprogressworker").run(task, callback)
+end
+
+--- Inspect existing progress before ReaderUI initializes defaults. Example: UI:readProgress(path).
+---@param path string
+---@return string|integer|nil
+function UI:readProgress(path)
+    local settings = require("docsettings"):open(path)
+    return settings:readSetting("last_xpointer") or settings:readSetting("last_page")
+end
+
 --- Open an attachment in KOReader. Example: UI:openReader(path).
 ---@param path string
 ---@param after_open function|nil

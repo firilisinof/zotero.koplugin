@@ -59,6 +59,11 @@ function FakeHttp:_handle(reqt)
         method = method,
         url = reqt.url,
         headers = reqt.headers,
+        body = reqt.source and (function()
+            local chunks = {}
+            ltn12.pump.all(reqt.source, (ltn12.sink.table(chunks)))
+            return table.concat(chunks)
+        end)() or nil,
     })
 
     local route = self:_match(method, reqt.url)

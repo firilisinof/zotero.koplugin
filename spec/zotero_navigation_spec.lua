@@ -105,6 +105,7 @@ describe("Zotero everyday navigation", function()
         browser:navigate{ kind = "all" }
         browser:onGotoPage(2)
         browser:onHome()
+        browser:onCloseAllMenus()
         api.init(env.root)
         browser:restoreLibrary()
         assert.equals("home", browser.current_view.kind)

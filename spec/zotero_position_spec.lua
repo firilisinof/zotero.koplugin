@@ -45,6 +45,37 @@ describe("Zotero browser position", function()
         assert.equals(0, env.http:callCount())
     end)
 
+    -- What a restarted process would read, independent of the shared in-memory settings.
+    local function diskPage()
+        local positions = api.util.openSettings(env.root .. "/meta.lua"):readSetting("browser_positions")
+        if type(positions) ~= "table" or not positions["users/4242"] then return nil end
+        return positions["users/4242"].view.page
+    end
+
+    it("keeps page turns in memory and writes them at close and suspend", function()
+        browser:navigate{ kind = "collection", key = "COLLAAA1" }
+        browser:onGotoPage(2)
+        assert.is_nil(diskPage())
+        assert.equals(2, api.getBrowserPosition("users/4242").view.page)
+        browser:onCloseAllMenus()
+        assert.equals(2, diskPage())
+        browser:onGotoPage(1)
+        assert.equals(2, diskPage())
+        local plugin = setmetatable({ api = api, runtime = runtime }, { __index = Plugin })
+        plugin:onSuspend()
+        assert.equals(1, diskPage())
+    end)
+
+    it("writes the position before closing the browser for a document", function()
+        env:file("ATTACH01")
+        browser:navigate{ kind = "collection", key = "COLLAAA1" }
+        browser:onGotoPage(2)
+        local page_at_close
+        browser.close_callback = function() page_at_close = diskPage() end
+        browser:onMenuSelect(browser.item_table[3])
+        assert.equals(2, page_at_close)
+    end)
+
     it("reopens on the same page after opening a local document", function()
         local path = env:file("ATTACH01")
         browser:navigate{ kind = "collection", key = "COLLAAA1" }

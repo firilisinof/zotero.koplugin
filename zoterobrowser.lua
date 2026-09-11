@@ -252,6 +252,8 @@ function Browser:openAttachment(path, key)
     self.runtime:openReader(path, function(reader)
         self.api.saveContinueReading(library, key, path)
         if progress then progress:safe("attach", reader, reading_context) end
+        if self.api.highlights then self.api.highlights:safe("attach", reader,
+            { key = key, path = path, library = library }) end
         self.runtime:bindReaderReturn(reader, library, position)
     end)
 end

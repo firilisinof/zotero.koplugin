@@ -11,6 +11,7 @@ This addon for [KOReader](https://github.com/koreader/koreader) allows you to vi
 
 - Read-only metadata sync of a personal or group Zotero library.
 - Optional PDF and EPUB reading-position sharing through Zotero synced settings.
+- Opt-in bidirectional PDF/EPUB highlight sync, with offline changes and reviewed conflicts.
 - Browse collections and subcollections, with local download indicators.
 - Open existing local PDF and EPUB copies without credentials or network access.
 - Browse and search an “On device” view, with browser position remembered per library.
@@ -72,6 +73,16 @@ Settings → Filter by tag matches one full tag exactly, including case. Publica
 
 The menu's last-sync time changes only after a successful complete sync. There is no periodic background sync or automatic Wi-Fi prompt.
 
+### Sync highlights
+
+Enable **Zotero → Settings → Sync highlights** while connected. It checks write
+access to the active library and is independent of position sharing. Open the
+PDF or EPUB through the plugin, then use **Sync highlights now** for a handoff.
+Offline edits are queued. Conflicting edits and edit-versus-delete changes wait
+for **Resolve highlight conflicts**; unrelated annotations and reading settings
+are preserved. See [highlight sync and validation](docs/highlight-sync.md) for
+format limits, duplicate handling and controlled live tests.
+
 ### Share reading position
 
 In Zotero → Settings, enable **Share reading position** while connected. It is off by default, checks the API key's permissions, and never turns on Wi-Fi. It is independent of metadata-sync preferences. Open the document through Zotero or Continue reading; files opened elsewhere do not enroll.
@@ -86,7 +97,7 @@ Use **Sync position now** for an explicit handoff, then synchronize Zotero on th
 
 Disabling sharing stops network exchange and keeps local progress and queued records. Correct revoked permissions, then disable/re-enable sharing to check the key again. Server backoff and interrupted transfers retain pending changes. A reader active elsewhere can publish a later position after KOReader's update.
 
-EPUB compatibility is tested against Zotero **10.0.1** and KOReader's crengine DOM versions 20171225, 20200223, 20240114 and 20260812. MathML/object transformations, CDATA text boundaries, unresolved named entities, and ambiguous normalization are currently unavailable. No annotations are created, changed or deleted. See [position-sharing design and validation](docs/position-sharing.md) for the exact support boundary and Kindle handoff procedure.
+EPUB compatibility is tested against Zotero **10.0.1** and KOReader's crengine DOM versions 20171225, 20200223, 20240114 and 20260812. MathML/object transformations, CDATA text boundaries, unresolved named entities, and ambiguous normalization are currently unavailable. Position sharing alone does not create, change or delete annotations. See [position-sharing design and validation](docs/position-sharing.md) for the exact support boundary and Kindle handoff procedure.
 
 ### WebDAV support
 

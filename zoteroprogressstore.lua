@@ -3,9 +3,10 @@ Store.__index = Store
 
 --- Open the account-scoped outbox without loading executable sidecars. Example: Store.new(api).
 ---@param api ZoteroAPI
+---@param filename string|nil
 ---@return table
-function Store.new(api)
-    return setmetatable({ api = api, path = api.zotero_dir .. "/reading-progress.json" }, Store)
+function Store.new(api, filename)
+    return setmetatable({ api = api, path = api.zotero_dir .. "/" .. (filename or "reading-progress.json") }, Store)
 end
 
 --- Reload before each transaction: reader and file manager have distinct plugin instances.

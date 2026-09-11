@@ -7,7 +7,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
         const page = await browser.newPage();
         await page.addScriptTag({ content: fs.readFileSync(process.argv[2], 'utf8') });
         const source = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
-        const result = await page.evaluate(async ({ chapters, cases, range_text }) => {
+        const result = await page.evaluate(async ({ chapters, cases, range_text, ranges }) => {
             const containers = [];
             for (const xhtml of chapters) {
                 const container = document.createElement('div');
@@ -31,9 +31,17 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
             const end = new Oracle.EpubCFI(cases[3].cfi).toRange(document, undefined, containers[0]);
             start.setEnd(end.startContainer, end.startOffset);
             if (start.toString() !== range_text) throw Error('Highlight passage mismatch: ' + start.toString());
-            return incoming;
+            const incomingRanges = ranges.map(entry => {
+                const cfi = new Oracle.EpubCFI(entry.cfi);
+                const range = cfi.toRange(document, undefined, containers[0]);
+                // crengine adds paragraph separators; DOM Range.toString() does not.
+                // Point assertions above independently pin the exact character boundaries.
+                if (range.toString().replace(/\s/g, '') !== entry.text.replace(/\s/g, '')) throw Error('Complete range passage mismatch: ' + entry.cfi);
+                return new Oracle.EpubCFI(range, '/6/2[chap1]').toString();
+            });
+            return { points: incoming, ranges: incomingRanges };
         }, source);
         fs.writeFileSync(process.argv[4], JSON.stringify(result));
-        console.log('ZOTERO POSITION ORACLE PASS: ' + result.length + ' points and 1 range');
+        console.log('ZOTERO POSITION ORACLE PASS: ' + result.points.length + ' points and ' + result.ranges.length + ' full ranges');
     } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

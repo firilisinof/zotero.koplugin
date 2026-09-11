@@ -55,6 +55,8 @@ function Plugin:initAPIAndBrowser()
     if self.api.zotero_dir ~= self.zotero_dir_path then self.api.init(self.zotero_dir_path) end
     self.api.progress = self.api.progress or require("zoteroprogress").new(self.api, self.runtime)
     self.progress = self.api.progress
+    self.api.highlights = self.api.highlights or require("zoterohighlights").new(self.api, self.runtime)
+    self.highlights = self.api.highlights
     self.browser = Browser:new{
         api = self.api, runtime = self.runtime, items_per_page = self:getItemsPerPage(),
         close_callback = function() self.runtime:close(self.zotero_dialog) end,
@@ -119,6 +121,7 @@ function Plugin:performSync(reset, automatic)
     self.browser:refresh()
     if not ok or err then self.runtime:message(tostring(err), 5) return end
     if self.progress then self.progress:safe("sync", false) end
+    if self.highlights then self.highlights:safe("sync", false) end
     if not automatic then self.runtime:message(_("Success."), 3) end
 end
 
@@ -130,19 +133,27 @@ Plugin.onPosUpdate = Plugin.onPageUpdate
 
 function Plugin:onSaveSettings()
     if self.progress and self.progress.reader == self.ui then self.progress:safe("checkpoint") end
+    if self.highlights and self.highlights.reader == self.ui then self.highlights:safe("checkpoint") end
+end
+
+function Plugin:onAnnotationsModified()
+    if self.highlights and self.highlights.reader == self.ui then self.highlights:safe("changed") end
 end
 
 function Plugin:onCloseDocument()
     if self.progress then self.progress:safe("close", self.ui) end
+    if self.highlights then self.highlights:safe("close", self.ui) end
 end
 
 function Plugin:onSuspend()
     if self.progress then self.progress:safe("suspend") end
+    if self.highlights then self.highlights:safe("suspend") end
 end
 Plugin.onNetworkDisconnecting = Plugin.onSuspend
 
 function Plugin:onResume()
     if self.progress then self.runtime:later(0.5, function() self.progress:safe("sync", false) end) end
+    if self.highlights then self.runtime:later(1, function() self.highlights:safe("sync", false) end) end
 end
 Plugin.onNetworkConnected = Plugin.onResume
 

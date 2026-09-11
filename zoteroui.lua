@@ -146,6 +146,7 @@ function UI:bindReaderReturn(reader, library, position)
         plugin.api.saveBrowserPosition(library, position)
         -- showFileManager has mounted a fresh plugin instance. Its browser owns
         -- the return view, and an account changed in the reader stays isolated.
+        if not plugin:ensureBrowser() then return end
         plugin.browser:restoreLibrary()
         self:show(plugin.zotero_dialog)
     end)

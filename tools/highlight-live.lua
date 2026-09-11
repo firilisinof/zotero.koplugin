@@ -43,6 +43,7 @@ local runtime = setmetatable({ online = true }, { __index = Runtime })
 function runtime:isOnline() return self.online end
 local Plugin = dofile(plugin_root .. "/main.lua")
 local plugin = Plugin:new{ api = api, runtime = runtime, ui = { menu = { registerToMainMenu = function() end } } }
+assert(plugin:ensureBrowser())
 local sync = api.highlights
 local ReaderUI = require("apps/reader/readerui")
 local evidence, index, stage, attempts, finished = {}, 1, "open", 0, false

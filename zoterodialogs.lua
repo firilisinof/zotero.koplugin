@@ -80,7 +80,8 @@ end
 local function saveTag(plugin, dialog, tag)
     plugin.api.setFilterTag(tag)
     plugin.runtime:close(dialog)
-    plugin.browser:refresh()
+    -- The tag is set from the reader menu too, where the browser may not be built yet.
+    if plugin.browser then plugin.browser:refresh() end
 end
 
 --- Set one exact tag, or clear filtering. Example: plugin:setFilterTag().

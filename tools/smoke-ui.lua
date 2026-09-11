@@ -15,6 +15,7 @@ local env = require("spec.support.zotero_env").new()
 local Plugin = dofile("plugins/zotero.koplugin/main.lua")
 local plugin = Plugin:new{ api = env.api, ui = { menu = { registerToMainMenu = function() end } } }
 assert(plugin.initialized)
+assert(plugin:ensureBrowser())
 local api, browser = plugin.api, plugin.browser
 assert(api.util.mkdir(root .. "/screenshots"))
 env:credentials()
@@ -353,12 +354,13 @@ local function stageClear()
 end
 step("38-sync-progress", function()
     plugin = assert(require("pluginloader"):getPluginInstance("zotero"))
-    browser = plugin.browser
     env:credentials()
     api.http = env.http
     env:syncRoutes()
     items_inode = lfs.attributes(api.getCachePath("items"), "ino")
     plugin:onZoteroOpenAction()
+    -- This file-manager instance builds its browser on the open above.
+    browser = plugin.browser
     plugin:onZoteroSyncAction()
     assert(api.operation == "sync")
     assert(top().text:find("tap to cancel", 1, true))

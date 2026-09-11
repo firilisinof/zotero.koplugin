@@ -17,6 +17,7 @@ function runtime:isOnline() return self.online end
 local env = require("spec.support.zotero_env").new()
 local Plugin = dofile(plugin_root .. "/main.lua")
 local plugin = Plugin:new{ api = env.api, runtime = runtime, ui = { menu = { registerToMainMenu = function() end } } }
+assert(plugin:ensureBrowser())
 local api, progress = plugin.api, plugin.api.progress
 env:credentials(); env:library()
 local fixture = "plugins/zotero.koplugin/spec/fixtures/positions/"

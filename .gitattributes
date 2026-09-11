@@ -1,0 +1,4 @@
+# Preserve the vendored notice byte-for-byte and allow its upstream CRLF endings.
+LICENSE-SLAXML -text whitespace=cr-at-eol
+# PDF cross-reference records contain significant trailing spaces.
+spec/fixtures/positions/*.pdf binary

@@ -9,7 +9,8 @@ This addon for [KOReader](https://github.com/koreader/koreader) allows you to vi
 
 ## Features
 
-- Read-only sync of a personal or group Zotero library.
+- Read-only metadata sync of a personal or group Zotero library.
+- Optional PDF and EPUB reading-position sharing through Zotero synced settings.
 - Browse collections and subcollections, with local download indicators.
 - Open existing local PDF and EPUB copies without credentials or network access.
 - Browse and search an “On device” view, with browser position remembered per library.
@@ -26,7 +27,7 @@ This addon for [KOReader](https://github.com/koreader/koreader) allows you to vi
 3. Obtain an API token for your account by generating a new key in your [Zotero Settings](https://www.zotero.org/settings/keys). Note the userID and the private key.
 4. Set your credentials for Zotero either directly in KOReader or edit the configuration file as described [below](#manual-configuration).
 
-Packaging requires `make`, a POSIX shell and `zip`. It includes the current working tree's top-level Lua files and license, and runs independently of the KOReader build and test suite. Run `make test` before distributing a package. When updating, replace the plugin files while preserving the separate `<KOReader>/zotero` data directory and document sidecars.
+Packaging requires `make`, a POSIX shell and `zip`. It includes the current working tree's top-level Lua files and dependency licenses, and runs independently of the KOReader build and test suite. Run `make test` before distributing a package. When updating, replace the plugin files while preserving the separate `<KOReader>/zotero` data directory and document sidecars.
 
 In KOReader, the Zotero plugin will be visible in the search tab (magnifying glass icon) inside the top menu.
 
@@ -39,7 +40,7 @@ If you are not interested in syncing your collection and would rather access you
 
 ### Personal and group libraries
 
-Open Settings → Configure Zotero account, select the library type, then enter its User ID or Group ID and your API key. The key must have read access to that library. A Group ID is the numeric ID from its Zotero group URL, not your personal User ID. The plugin never writes to Zotero.
+Open Settings → Configure Zotero account, select the library type, then enter its User ID or Group ID and your API key. The key must have read access to that library. A Group ID is the numeric ID from its Zotero group URL, not your personal User ID. Metadata browsing and downloads remain read-only. Optional reading-position sharing writes only the attachment's native Zotero position setting and requires personal-library read/write permission.
 
 Switching the active library clears its cached metadata and last-sync timestamp. Synchronize to populate the selected library. Downloaded files and KOReader sidecars remain on disk. The original personal library keeps its existing paths, and other libraries have separate storage directories.
 
@@ -70,6 +71,22 @@ Settings → Filter by tag matches one full tag exactly, including case. Publica
 “Sync on startup” and “Sync on browse when older than 24 hours” are disabled by default. Both require configured credentials and an existing network connection. Startup is attempted once per KOReader session and is skipped when offline. Browser-open sync runs when no successful sync is recorded or the last one is more than 24 hours old. Manual sync remains available at any time when another operation is not running.
 
 The menu's last-sync time changes only after a successful complete sync. There is no periodic background sync or automatic Wi-Fi prompt.
+
+### Share reading position
+
+In Zotero → Settings, enable **Share reading position** while connected. It is off by default, checks the API key's permissions, and never turns on Wi-Fi. It is independent of metadata-sync preferences. Open the document through Zotero or Continue reading; files opened elsewhere do not enroll.
+
+Use **Sync position now** for an explicit handoff, then synchronize Zotero on the other device and open the document there. An already-open Zotero desktop tab is not repositioned live. The menu reports shared, pending, or a reason sharing is unavailable.
+
+- PDFs share the physical page. Each app keeps its own zoom and view within that page.
+- EPUBs share a verified content location, independent of font size and pagination. Unsupported mappings report a reason; they never substitute a percentage.
+- Existing KOReader progress initializes the first exchange. Otherwise the plugin imports Zotero's position if present. Later pending KOReader changes win observed conflicts; a clean local document imports remote changes.
+- Progress is saved after a short debounce and before close or suspend. Uploads wait for ten seconds idle and respect a one-minute automatic cadence. Offline changes survive restart in `zotero/reading-progress.json`, separate from sidecars and browser navigation.
+- The complete local file must match the attachment checksum in Zotero. Changed, missing or unverifiable copies remain readable; sharing pauses. Linked files without a synced checksum cannot share positions.
+
+Disabling sharing stops network exchange and keeps local progress and queued records. Correct revoked permissions, then disable/re-enable sharing to check the key again. Server backoff and interrupted transfers retain pending changes. A reader active elsewhere can publish a later position after KOReader's update.
+
+EPUB compatibility is tested against Zotero **10.0.1** and KOReader's crengine DOM versions 20171225, 20200223, 20240114 and 20260812. MathML/object transformations, CDATA text boundaries, unresolved named entities, and ambiguous normalization are currently unavailable. No annotations are created, changed or deleted. See [position-sharing design and validation](docs/position-sharing.md) for the exact support boundary and Kindle handoff procedure.
 
 ### WebDAV support
 

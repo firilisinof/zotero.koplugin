@@ -11,11 +11,13 @@ Fork of [stelzch/zotero.koplugin](https://github.com/stelzch/zotero.koplugin).
 | `zoteroapi.lua` | Public API facade and local cache I/O |
 | `zotero{settings,index,transport,download,sync}.lua` | Focused API behavior modules, injected with the facade |
 | `zotero{browser,row,dialogs,menu,ui}.lua` | Browser, metadata rows, configuration dialogs, menu and KOReader UI boundary |
+| `zoteroprogress*.lua` | Opt-in position lifecycle, durable outbox, identity, reader codecs, worker and settings client |
+| `zotero{epub,cfi,xml,unicode}.lua` | Exact EPUB point conversion; SLAXML is isolated behind `zoteroxml` |
 | `zotero{util,archive,types}.lua` | Filesystem/archive boundaries and shared Lua annotations |
 | `_meta.lua` | Plugin manifest read by KOReader's plugin loader |
 | `spec/` | busted specs, run inside a real KOReader build |
 | `tools/` | Development scripts, not shipped to the device |
-| `docs/roadmap.md` | What to build next, and why highlight sync is not being attempted |
+| `docs/roadmap.md` | What to build next, and the remaining highlight-sync work |
 
 ## Development loop
 
@@ -37,7 +39,7 @@ make package # create dist/zotero.koplugin.zip for installation
 make test KOREADER_SRC=~/src/koreader
 ```
 
-`make package` uses `tools/package.sh` to archive the current working tree's top-level Lua files and `LICENSE` under `zotero.koplugin/`. It requires `zip`, but no KOReader checkout. The ignored `dist/` directory holds the resulting ZIP. Packaging stages a fresh archive before replacing the previous package. Run `make test` separately before distributing it.
+`make package` uses `tools/package.sh` to archive the current working tree's top-level Lua files and `LICENSE*` under `zotero.koplugin/`. It requires `zip`, but no KOReader checkout. The ignored `dist/` directory holds the resulting ZIP. Packaging stages a fresh archive before replacing the previous package. Run `make test` separately before distributing it.
 
 ### Why edits are live
 
@@ -150,12 +152,18 @@ Attachment rows also carry `title`, `author`, `year`, `file_format` and `downloa
 - Selecting a present PDF or EPUB opens it directly, including stale and linked copies. Explicit collection downloads still update stale attachments. “On device” lists present attachments from the active filtered index, with search scoped to local copies.
 - Zotero home offers Continue reading, Collections, All items, On device and Search. `zoteroheader.lua` uses native TitleBar and ButtonTable widgets for persistent Home, Back and Search controls. Collection names and search queries appear in the title.
 - `zoteroreader.lua` binds return behavior to a successfully opened ReaderUI instance through its after-open callback. Native Home, file-browser menu and end-of-book file-browser actions save/close the reader before restoring the captured library view on the fresh file-manager plugin. Document reloads retain the binding. Ordinary opens, document switches and quit are unaffected.
-- `continue_reading` records the last successful plugin-opened document per library. The home entry rechecks the cached attachment and exact local path before opening. KOReader owns all reading progress and sidecars.
+- `continue_reading` records the last successful plugin-opened document per library. The home entry rechecks the cached attachment and exact local path before opening. KOReader owns local reading progress and sidecars; the optional sharing coordinator keeps its own outbox outside sidecars.
 - `zoteroposition.lua` stores browser views, pages and back history in `browser_positions`, keyed by library prefix. Browser reopening reloads the latest snapshot because the file manager and reader have separate plugin instances. Empty caches after switching libraries defer destination validation until metadata returns.
 - Versions belong to individual attachments in `.zotero-<key>.version`. A legacy parent-level marker is accepted only for a single readable attachment. Transfers and archive extraction are staged before replacing the document.
 - Collection downloads use one dismissible subprocess per stale attachment. The subprocess may write files but never changes UI or settings. The parent reports progress and failures and refreshes file-presence indicators.
 - `last_sync` is recorded only after full sync success. `sync_on_startup` and `sync_on_open` default to false. Automatic sync needs an existing connection and never prompts to enable Wi-Fi. Browser-open sync uses a fixed 24-hour threshold.
 - `tools/smoke-ui.lua` runs real widgets and downloads against fixtures in a temporary profile. It saves screenshots and checks cancellation and sidecar preservation. It must use a fresh temporary `KO_HOME`.
+
+## Optional position writes
+
+Reading-position sharing is off by default. Its only production write is a conditional PUT to one `lastPageIndex` synced setting. Personal and group settings both live under the API key owner's `/users/<owner>/settings`; group settings include the group ID in their name. Metadata cursors remain independent. The parent alone writes the durable progress outbox; network work runs in the non-modal child with the existing operation lock. Never log API credentials.
+
+`make test` runs against the existing compiled emulator without triggering a native rebuild. `tools/check-position-oracle.py` independently executes real crengine and CFI/sanitizer code extracted from installed Zotero 10.0.1. `tools/smoke-progress.lua` exercises actual ReaderUI lifecycle with offline fixtures and a fresh `/tmp` KO_HOME. Live checks are separate and explicitly use only dedicated attachments; see `docs/position-sharing.md`.
 
 ## Not set up yet
 

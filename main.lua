@@ -53,6 +53,8 @@ function Plugin:initAPIAndBrowser()
     self.zotero_dir_path = DataStorage:getDataDir() .. "/zotero"
     self.api.util.mkdir(self.zotero_dir_path)
     if self.api.zotero_dir ~= self.zotero_dir_path then self.api.init(self.zotero_dir_path) end
+    self.api.progress = self.api.progress or require("zoteroprogress").new(self.api, self.runtime)
+    self.progress = self.api.progress
     self.browser = Browser:new{
         api = self.api, runtime = self.runtime, items_per_page = self:getItemsPerPage(),
         close_callback = function() self.runtime:close(self.zotero_dialog) end,
@@ -116,7 +118,32 @@ function Plugin:performSync(reset, automatic)
     self.api.endOperation()
     self.browser:refresh()
     if not ok or err then self.runtime:message(tostring(err), 5) return end
+    if self.progress then self.progress:safe("sync", false) end
     if not automatic then self.runtime:message(_("Success."), 3) end
 end
+
+--- Forward native lifecycle events only for the bound Zotero reader.
+function Plugin:onPageUpdate()
+    if self.progress and self.progress.reader == self.ui then self.progress:safe("changed") end
+end
+Plugin.onPosUpdate = Plugin.onPageUpdate
+
+function Plugin:onSaveSettings()
+    if self.progress and self.progress.reader == self.ui then self.progress:safe("checkpoint") end
+end
+
+function Plugin:onCloseDocument()
+    if self.progress then self.progress:safe("close", self.ui) end
+end
+
+function Plugin:onSuspend()
+    if self.progress then self.progress:safe("suspend") end
+end
+Plugin.onNetworkDisconnecting = Plugin.onSuspend
+
+function Plugin:onResume()
+    if self.progress then self.runtime:later(0.5, function() self.progress:safe("sync", false) end) end
+end
+Plugin.onNetworkConnected = Plugin.onResume
 
 return Plugin

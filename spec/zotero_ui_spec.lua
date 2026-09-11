@@ -54,7 +54,7 @@ describe("Zotero feature UI", function()
         local menu = {}
         plugin:addToMainMenu(menu)
         local settings = menu.zotero.sub_item_table[5].sub_item_table
-        assert.equals(8, #settings)
+        assert.equals(9, #settings)
         for index = 6, 8 do assert.is_false(settings[index].enabled_func()) end
         api.setAccount("user", "4242", "key")
         for index = 6, 8 do assert.is_true(settings[index].enabled_func()) end

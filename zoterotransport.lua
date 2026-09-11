@@ -35,6 +35,27 @@ function Transport.getHeaders(api, api_key)
     return { ["zotero-api-key"] = api_key, ["zotero-api-version"] = "3" }
 end
 
+--- Exchange a JSON object, retaining HTTP status for conditional writes. Example: API.requestJSON(url, key).
+---@param api ZoteroAPI
+---@param url string
+---@param key string
+---@param method string|nil
+---@param payload table|nil
+---@param extra table|nil
+---@return table
+function Transport.requestJSON(api, url, key, method, payload, extra)
+    local headers, chunks = api.getHeaders(key), {}
+    for name, value in pairs(extra or {}) do headers[name] = value end
+    local encoded = payload and api.util.encode(payload)
+    if encoded then headers["content-type"], headers["content-length"] = "application/json", tostring(#encoded) end
+    local result, code, response = request(api, { method = method or "GET", url = url, headers = headers,
+        source = encoded and ltn12.source.string(encoded), sink = ltn12.sink.table(chunks) })
+    if result ~= 1 then return { code = 0, error = "Could not reach Zotero", headers = {} } end
+    local body = table.concat(chunks)
+    local ok, decoded = pcall(api.util.decode, body)
+    return { code = tonumber(code) or 0, body = ok and decoded or nil, headers = response or {} }
+end
+
 --- Build personal WebDAV authorization. Example: API.getWebDAVHeaders().
 ---@param api ZoteroAPI
 ---@return table<string, string>

@@ -243,12 +243,15 @@ end
 ---@param path string
 ---@param key string
 function Browser:openAttachment(path, key)
+    local progress = self.api.progress
+    local reading_context = progress and progress:safe("prepare", key, path)
     self:savePosition()
     local library = self.position_library or self.api.getLocalLibraryPrefix() or "local"
     local position = self.api.getBrowserPosition(library)
     self.close_callback()
     self.runtime:openReader(path, function(reader)
         self.api.saveContinueReading(library, key, path)
+        if progress then progress:safe("attach", reader, reading_context) end
         self.runtime:bindReaderReturn(reader, library, position)
     end)
 end

@@ -2,6 +2,7 @@ local JSON = require("json")
 local LuaSettings = require("luasettings")
 local lfs = require("libs/libkoreader-lfs")
 local util = require("util")
+local ffiutil = require("ffi/util")
 
 local Util = {}
 
@@ -19,19 +20,30 @@ end
 --- Replace a small metadata file atomically. Example: Util.write(path, "12").
 ---@param path string
 ---@param contents string
+---@param durable boolean|nil
 ---@return string|nil error
-function Util.write(path, contents)
+function Util.write(path, contents, durable)
     local temporary = path .. ".tmp"
     local file, err = io.open(temporary, "wb")
     if not file then return "Could not write " .. temporary .. ": " .. tostring(err) end
     local written, write_error = file:write(contents)
+    if written and durable then
+        local synced, sync_error = ffiutil.fsyncOpenedFile(file, true)
+        if not synced then written, write_error = nil, sync_error end
+    end
     local closed, close_error = file:close()
     if not written or not closed then
         os.remove(temporary)
         return "Could not finish " .. temporary .. ": " .. tostring(write_error or close_error)
     end
     local renamed, rename_error = os.rename(temporary, path)
-    if renamed then return nil end
+    if renamed then
+        if durable then
+            local synced, sync_error = ffiutil.fsyncDirectory(path)
+            if not synced then return "Could not flush progress directory: " .. tostring(sync_error) end
+        end
+        return nil
+    end
     os.remove(temporary)
     return "Could not replace " .. path .. ": " .. tostring(rename_error)
 end

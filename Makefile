@@ -59,7 +59,7 @@ run: link check-koreader
 	cd $(KOREADER_SRC) && ./kodev run
 
 test: link check-koreader
-	cd $(KOREADER_SRC) && ./kodev test front $(SPEC_NAMES)
+	sh ./tools/test.sh "$(KOREADER_SRC)" $(SPEC_NAMES)
 
 package:
 	sh ./tools/package.sh

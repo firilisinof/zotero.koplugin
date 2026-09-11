@@ -19,6 +19,7 @@ function ReaderReturn.bind(reader, callback)
     reader.reloadDocument = function(current, after_close, seamless, after_open)
         return reload(current, after_close, seamless, function(reopened)
             if after_open then after_open(reopened) end
+            if current.zotero_progress_rebind then current.zotero_progress_rebind(reopened) end
             ReaderReturn.bind(reopened, callback)
         end)
     end

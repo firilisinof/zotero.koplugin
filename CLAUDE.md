@@ -12,12 +12,13 @@ Fork of [stelzch/zotero.koplugin](https://github.com/stelzch/zotero.koplugin).
 | `zotero{settings,index,transport,download,sync}.lua` | Focused API behavior modules, injected with the facade |
 | `zotero{browser,row,dialogs,menu,ui}.lua` | Browser, metadata rows, configuration dialogs, menu and KOReader UI boundary |
 | `zoteroprogress*.lua` | Opt-in position lifecycle, durable outbox, identity, reader codecs, worker and settings client |
+| `zoterohighlight*.lua`, `zoteropdf.lua`, `zoterocfirange.lua` | Opt-in annotation lifecycle, merge journal, conditional item writes, reader import and range/rectangle conversion |
 | `zotero{epub,cfi,xml,unicode}.lua` | Exact EPUB point conversion; SLAXML is isolated behind `zoteroxml` |
 | `zotero{util,archive,types}.lua` | Filesystem/archive boundaries and shared Lua annotations |
 | `_meta.lua` | Plugin manifest read by KOReader's plugin loader |
 | `spec/` | busted specs, run inside a real KOReader build |
 | `tools/` | Development scripts, not shipped to the device |
-| `docs/roadmap.md` | What to build next, and the remaining highlight-sync work |
+| `docs/roadmap.md` | Implemented capabilities and links to format support boundaries |
 
 ## Development loop
 
@@ -164,6 +165,19 @@ Attachment rows also carry `title`, `author`, `year`, `file_format` and `downloa
 Reading-position sharing is off by default. Its only production write is a conditional PUT to one `lastPageIndex` synced setting. Personal and group settings both live under the API key owner's `/users/<owner>/settings`; group settings include the group ID in their name. Metadata cursors remain independent. The parent alone writes the durable progress outbox; network work runs in the non-modal child with the existing operation lock. Never log API credentials.
 
 `make test` runs against the existing compiled emulator without triggering a native rebuild. `tools/check-position-oracle.py` independently executes real crengine and CFI/sanitizer code extracted from installed Zotero 10.0.1. `tools/smoke-progress.lua` exercises actual ReaderUI lifecycle with offline fixtures and a fresh `/tmp` KO_HOME. Live checks are separate and explicitly use only dedicated attachments; see `docs/position-sharing.md`.
+
+## Optional highlight writes
+
+Highlight sync is separately off by default. It checks write access to the actual
+attachment library and uses only conditional annotation POST/PATCH writes,
+including recoverable trash for mapped deletions. `highlights.json` holds the
+merge baseline and import journal; only the parent writes it. Shared identity,
+checksum, transport, operation lock and background worker infrastructure remain
+the same as position sharing. EPUB ranges reuse the existing point resolver.
+PDF transforms are calibrated through supported MuPDF APIs in a disposable
+scratch document, never by writing the source PDF. The reader-instance geometry
+hook preserves imported rectangles and is removed on close. See
+`docs/highlight-sync.md` for tests, live tools and support limits.
 
 ## Not set up yet
 

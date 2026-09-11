@@ -46,9 +46,10 @@ end
 ---@param api ZoteroAPI
 ---@param key string
 ---@param path string
+---@param authorization string|nil
 ---@return table|nil, string|nil
-function Identity.capture(api, key, path)
-    local auth = api.settings:readSetting("progress_authorization")
+function Identity.capture(api, key, path, authorization)
+    local auth = api.settings:readSetting(authorization or "progress_authorization")
     if not auth or auth.key_hash ~= Identity.keyHash(api.getAPIKey() or "") then return nil, "Check position-sharing permissions in Settings" end
     local item = api.getItems()[key]
     if not item or api.getLocalAttachmentPath(key) ~= path then return nil, "Attachment identity or path is unavailable" end

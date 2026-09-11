@@ -239,4 +239,27 @@ function EPUB:decode(value)
     return nil, tostring(result):gsub("^.-:%d+: ", "")
 end
 
+--- Count UTF-16 characters before a resolved point for Zotero annotation ordering.
+---@param cfi string
+---@return integer, integer
+function EPUB:sortOffset(cfi)
+    local parsed = CFI.parse(cfi)
+    local section = self:section(parsed.spine)
+    local target, offset = CFI.resolve(section.html, parsed)
+    local count, found = 0, false
+    ---@param node table
+    local function visit(node)
+        if found then return end
+        if node == target then count = count + offset; found = true; return end
+        if node.name == "#text" then
+            local boundaries = Unicode.boundaries(node.text)
+            count = count + boundaries[#boundaries]
+        end
+        for _, child in ipairs(node.children or {}) do visit(child) end
+    end
+    visit(section.html)
+    assert(found, "CFI sort target is absent from EPUB section")
+    return parsed.spine - 1, count
+end
+
 return EPUB

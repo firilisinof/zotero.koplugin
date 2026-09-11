@@ -87,6 +87,14 @@ function UI:unschedule(callback)
     UIManager:unschedule(callback)
 end
 
+--- Invalidate native highlight boxes after an import, without changing reading layout.
+---@param reader table
+function UI:refreshHighlights(reader)
+    reader.view:resetHighlightBoxesCache()
+    if reader.view.footer then reader.view.footer:maybeUpdateFooter() end
+    UIManager:setDirty(reader, "ui")
+end
+
 --- Execute network work in a non-modal child. Example: UI:background(task, callback).
 ---@param task function
 ---@param callback function

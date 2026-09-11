@@ -54,6 +54,9 @@ local function settingsEntries(plugin)
     table.insert(entries, { text = _("Share reading position"),
         checked_func = function() return plugin.api.progress and plugin.api.progress:enabled() or false end,
         callback = function() plugin.api.progress:safe("toggle") end })
+    table.insert(entries, { text = _("Sync highlights"),
+        checked_func = function() return plugin.api.highlights and plugin.api.highlights:enabled() or false end,
+        callback = function() plugin.api.highlights:safe("toggle") end })
     return entries
 end
 
@@ -71,7 +74,48 @@ function Menus:addToMainMenu(menu_items)
         entry(self, _("Sync position now"), function() self.api.progress:safe("sync", true) end),
         { text_func = function() return self.api.progress and self.api.progress:statusText() or _("Position sharing is off") end,
             enabled = false },
+        entry(self, _("Sync highlights now"), function() self.api.highlights:safe("sync", true) end),
+        entry(self, _("Resolve highlight conflicts"), function() self:showHighlightConflicts() end),
+        { text_func = function() return self.api.highlights and self.api.highlights:statusText() or _("Highlight sync is off") end,
+            enabled = false },
     } }
+end
+
+---@param value table|boolean
+---@return string
+local function describeHighlight(value)
+    if value == false then return _("Deleted") end
+    return value.text .. "\n" .. value.comment .. "\n" .. value.color
+end
+
+--- Present both saved values for review. Example: plugin:showHighlightChoice(id, conflict).
+---@param id string
+---@param conflict table
+function Menus:showHighlightChoice(id, conflict)
+    local dialog
+    ---@param side string
+    local function choose(side)
+        self.runtime:close(dialog); self.api.highlights:safe("resolve", id, side)
+    end
+    dialog = self.runtime.ButtonDialog:new{ title = _("Highlight conflict") .. "\n" ..
+        _("KOReader:") .. "\n" .. describeHighlight(conflict.local_value) .. "\n\n" .. _("Zotero:") .. "\n" .. describeHighlight(conflict.remote),
+        buttons = {
+            { { text = _("Keep KOReader"), callback = function() choose("local") end },
+              { text = _("Keep Zotero"), callback = function() choose("remote") end } },
+            { { text = _("Later"), callback = function() self.runtime:close(dialog) end } },
+        } }
+    self.runtime:show(dialog)
+end
+
+--- Review each conflict before choosing either version. Example: plugin:showHighlightConflicts().
+function Menus:showHighlightConflicts()
+    local highlights = self.api.highlights
+    if not highlights or not highlights:active() then self.runtime:message(_("Open a shared document first."), 3); return end
+    local record = highlights.store:get(highlights.identity)
+    for id, annotation in pairs(record.entries) do
+        if annotation.conflict then self:showHighlightChoice(id, annotation.conflict); return end
+    end
+    self.runtime:message(_("No highlight conflicts."), 3)
 end
 
 --- Format the last successful completion in local time. Example: plugin:lastSyncText().

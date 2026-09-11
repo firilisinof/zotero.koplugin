@@ -10,6 +10,7 @@ function Runtime.new()
 end
 
 function Runtime:readProgress() return self.existing end
+function Runtime:refreshHighlights(reader) reader.refreshed = (reader.refreshed or 0) + 1 end
 function Runtime:later(delay, task) self.timers[task] = self.clock + delay end
 function Runtime:unschedule(task) self.timers[task] = nil end
 function Runtime:background(task, callback)

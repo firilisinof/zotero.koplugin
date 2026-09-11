@@ -1,6 +1,6 @@
 # Roadmap
 
-The six cheap wins and opt-in PDF/EPUB reading-position sharing are implemented. Metadata access stays read-only; enabled position sharing writes native Zotero synced settings. See [position sharing](position-sharing.md) for validation and limits. Annotation synchronization remains future work.
+The six cheap wins, opt-in PDF/EPUB reading-position sharing, and opt-in bidirectional highlight synchronization are implemented. Metadata browsing remains read-only. Position sharing writes native synced settings; highlight sync conditionally updates attachment annotations. See [position sharing](position-sharing.md) and [highlight sync](highlight-sync.md) for validation and limits.
 
 ## Implemented cheap wins
 
@@ -27,69 +27,11 @@ The API facade remains `zoteroapi.lua`, with settings, indexing, transport, down
 
 `tools/smoke-ui.lua` exercises real emulator widgets and subprocess downloads using fixture data and a fresh temporary `KO_HOME`. It saves screenshots there and checks group selection, notes, filters, download progress, cancellation, cached browsing and sidecar preservation. See README for its invocation.
 
-## Highlight sync: documented, not attempted
+## Highlight sync
 
-This is the obvious next ambition and it is deliberately out of scope. The notes
-below exist so the decision does not have to be re-derived.
-
-### It is possible
-
-Zotero annotations are ordinary writable items. The template endpoint confirms
-the shape:
-
-```
-GET https://api.zotero.org/items/new?itemType=annotation&annotationType=highlight
-
-{"itemType":"annotation","parentItem":"","annotationText":"","annotationComment":"",
- "annotationColor":"","annotationPageLabel":"","annotationSortIndex":"00000|000000|00000",
- "annotationPosition":{"pageIndex":0,"rects":[]},"tags":[]}
-```
-
-`parentItem` is the **attachment** key, which is exactly the key the browser
-already passes to `downloadAndGetPath`. Annotations travel over the Zotero API
-even when files travel over WebDAV, so a WebDAV user gets annotation sync too.
-
-On the KOReader side, highlights live in the document's `DocSettings` sidecar
-under `annotations`. The entry shape is built in
-`frontend/apps/reader/modules/readerannotation.lua:66` and carries `text`,
-`note`, `color`, `drawer`, `page`, `pos0`, `pos1`, `datetime`, `chapter` and
-`pageno`.
-
-### What makes it expensive for PDF
-
-1. **Coordinates.** KOReader stores `pos0`/`pos1` as `{x, y, page}` in page
-   space with a top-left origin, plus `pboxes` for the drawn rectangles. Zotero
-   wants `rects` in PDF points with a bottom-left origin. The transform has to
-   account for the y flip, the cropbox offset and page rotation. Get it slightly
-   wrong and highlights land a few millimetres off in the Zotero reader, which
-   is the kind of bug that is easy to ship and tedious to find.
-2. **Idempotency.** Pushing twice creates duplicates. This needs a durable map
-   from a KOReader annotation to the Zotero key it produced. The annotation
-   `datetime` is stable and is the natural local id. The map belongs in
-   something like `zotero/annotations/<attachmentKey>.json` rather than the
-   sidecar, because sidecars get wiped and Zotero keys are library state.
-3. **Write permission.** Position sharing now checks personal-library write access with `GET /keys/current`. Annotation writes must additionally check access to the actual attachment library, especially for groups.
-4. **Colors.** KOReader has nine named highlight colors
-   (`frontend/apps/reader/modules/readerhighlight.lua:29`) and Zotero has eight
-   fixed hex values. A static name to hex table with a yellow fallback covers
-   it.
-
-Batch writes accept up to 50 objects per POST and return `successful`, `failed`
-and `unchanged` maps, so partial failure is reportable rather than fatal.
-
-Pulling annotations the other way, from the Zotero desktop reader into the
-sidecar, is the same coordinate work in reverse plus a conflict rule. It should
-wait until one-way push works.
-
-### What makes it hard for EPUB
-
-Zotero addresses EPUB annotations with EPUB CFI. KOReader addresses EPUB
-positions with crengine XPointers into a single flattened document, of the form
-`/body/DocFragment[3]/body/div/p[5]/text().12`. There is no cheap conversion.
-It means mapping a `DocFragment` index back to its spine item and a node path to
-CFI steps, through crengine's own DOM normalization, and being exact, since a
-near miss puts the highlight in the wrong paragraph.
-
-The position resolver now implements this conversion for supported locations and validates endpoint pairs against real crengine and Zotero's installed CFI implementation. Highlights can reuse those endpoints, attachment identity, transport and durable storage primitives. They still need stable annotation IDs, duplicate prevention, edit/delete reconciliation and tests of complete ranges. PDF highlights additionally need coordinate and rectangle conversion.
-
-The current release does not synchronize annotations. Endpoint interoperability is a foundation, not a complete annotation merge protocol.
+Implemented through the existing attachment identity, transport, operation lock,
+background worker and durable store. Full EPUB ranges reuse the exact endpoint
+resolver; PDF conversion handles page coordinate transforms. Stable IDs, offline
+snapshots, conditional writes, tombstones and reviewed conflicts protect both
+sides. See [highlight sync](highlight-sync.md) for supported formats, preservation
+contracts, automated tests and controlled live handoffs.

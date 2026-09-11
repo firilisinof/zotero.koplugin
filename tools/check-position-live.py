@@ -18,6 +18,7 @@ import uuid
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--credentials", type=Path, required=True)
 parser.add_argument("--manifest", type=Path, required=True)
+parser.add_argument("--purpose", choices=["positions", "highlights"], default="positions")
 parser.add_argument("--phase", choices=["create", "cleanup", "read"], required=True)
 args = parser.parse_args()
 match = re.search(r'\["api_key"\]\s*=\s*"([^"\\]+)"', args.credentials.read_text())
@@ -53,7 +54,7 @@ if args.phase == "create":
     for filename, content_type in [("sample.pdf", "application/pdf"), ("sample.epub", "application/epub+zip")]:
         path = fixture / filename
         contents = path.read_bytes()
-        item = {"itemType": "attachment", "linkMode": "imported_file", "title": "Position sharing test " + filename,
+        item = {"itemType": "attachment", "linkMode": "imported_file", "title": ("Highlight sync test " if args.purpose == "highlights" else "Position sharing test ") + filename,
                 "filename": filename, "contentType": content_type, "tags": [{"tag": "position-sharing-test"}], "relations": {}}
         created = request(f"users/{owner}/items", "POST", [item], headers={"Zotero-Write-Token": uuid.uuid4().hex})
         assert "0" in created["successful"], "Fixture creation failed"
@@ -88,7 +89,9 @@ else:
             print(entry["format"], key, json.dumps(request(setting)))
             continue
         attachment = request(f"{prefix}/items/{key}")
-        assert attachment["data"]["title"].startswith("Position sharing test "), "Refusing to remove a non-fixture item"
+        expected_title = "Highlight sync test " if args.purpose == "highlights" else "Position sharing test "
+        assert attachment["data"]["title"].startswith(expected_title), "Refusing to remove a non-fixture item"
+        assert attachment["data"]["md5"] == entry["md5"], "Refusing cleanup after fixture content changed"
         try:
             value = request(setting)
         except RuntimeError as exc:

@@ -3,7 +3,6 @@ local Dispatcher = require("dispatcher")
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local FrameContainer = require("ui/widget/container/framecontainer")
 local DataStorage = require("datastorage")
-local Browser = require("zoterobrowser")
 local SyncJob = require("zoterosyncjob")
 local _ = require("gettext")
 
@@ -32,25 +31,37 @@ function Plugin:init()
     self.ui.menu:registerToMainMenu(self)
     -- pcall rather than xpcall: a method used as an error handler would receive
     -- the error string in place of self and fail while reporting the first error.
-    local ok, err = pcall(self.initAPIAndBrowser, self)
+    local ok, err = pcall(self.initAPI, self)
     if not ok then
-        print(self.api.util.encode({ event = "zotero_init_failed", error = tostring(err) }))
+        self:logFailure("zotero_init_failed", err)
         return
     end
     self.initialized = true
     if self.api.settings then self:maybeStartupSync() end
 end
 
+--- Record a contained setup error in the KOReader log. Example: plugin:logFailure("zotero_init_failed", err).
+---@param event string
+---@param err string|table|nil
+function Plugin:logFailure(event, err)
+    print(self.api.util.encode({ event = event, error = tostring(err) }))
+end
+
+--- Tell the user why an action cannot run. Example: plugin:reportUnavailable().
+function Plugin:reportUnavailable()
+    self.runtime:message(_("Zotero could not be initialized. Check the KOReader log for details."), 3)
+end
+
 --- Guard actions after a failed initialization. Example: plugin:checkInitialized().
 ---@return boolean
 function Plugin:checkInitialized()
-    if self.initialized and self.browser then return true end
-    self.runtime:message(_("Zotero could not be initialized. Check the KOReader log for details."), 3)
+    if self.initialized then return true end
+    self:reportUnavailable()
     return false
 end
 
---- Wire the browser to the shared API and KOReader runtime. Example: plugin:initAPIAndBrowser().
-function Plugin:initAPIAndBrowser()
+--- Wire the shared API, position and highlight coordinators and sync job. Example: plugin:initAPI().
+function Plugin:initAPI()
     self.zotero_dir_path = DataStorage:getDataDir() .. "/zotero"
     self.api.util.mkdir(self.zotero_dir_path)
     if self.api.zotero_dir ~= self.zotero_dir_path then self.api.init(self.zotero_dir_path) end
@@ -58,16 +69,34 @@ function Plugin:initAPIAndBrowser()
     self.progress = self.api.progress
     self.api.highlights = self.api.highlights or require("zoterohighlights").new(self.api, self.runtime)
     self.highlights = self.api.highlights
-    self.browser = Browser:new{
+    self.api.sync_job = self.api.sync_job or SyncJob.new(self.api, self.runtime)
+    self:attachSyncJob(self.api.sync_job)
+end
+
+--- Build the browser on first use. Every book open mounts a new plugin instance, and most
+--- never show the browser. Errors are contained like init errors. Example: plugin:ensureBrowser().
+---@return boolean
+function Plugin:ensureBrowser()
+    if self.browser then return true end
+    local ok, err = pcall(self.buildBrowser, self)
+    if ok then return true end
+    self:logFailure("zotero_browser_failed", err)
+    self:reportUnavailable()
+    return false
+end
+
+--- Wire a browser to the shared API and KOReader runtime. Example: plugin:buildBrowser().
+function Plugin:buildBrowser()
+    local browser = require("zoterobrowser"):new{
         api = self.api, runtime = self.runtime, items_per_page = self:getItemsPerPage(),
         close_callback = function() self.runtime:close(self.zotero_dialog) end,
     }
-    self.zotero_dialog = FrameContainer:new{
-        padding = 0, bordersize = 0, background = Blitbuffer.COLOR_WHITE, self.browser,
+    local dialog = FrameContainer:new{
+        padding = 0, bordersize = 0, background = Blitbuffer.COLOR_WHITE, browser,
     }
-    self.browser.show_parent = self.zotero_dialog
-    self.api.sync_job = self.api.sync_job or SyncJob.new(self.api, self.runtime)
-    self:attachSyncJob(self.api.sync_job)
+    browser.show_parent = dialog
+    -- Assign together, so a failed build never leaves a browser without its dialog.
+    self.browser, self.zotero_dialog = browser, dialog
 end
 
 --- Share one sync job across plugin instances. A sync outlives the instance that started it,
@@ -80,7 +109,7 @@ end
 
 --- Browse cached metadata immediately. Example: plugin:onZoteroOpenAction().
 function Plugin:onZoteroOpenAction()
-    if not self:checkInitialized() then return end
+    if not self:checkInitialized() or not self:ensureBrowser() then return end
     self.browser:restoreLibrary()
     self.runtime:show(self.zotero_dialog)
     self:maybeAutoSync("open")
@@ -110,7 +139,8 @@ end
 
 --- Show committed metadata and hand off to position and highlight syncs. Example: plugin:afterSyncCommit().
 function Plugin:afterSyncCommit()
-    self.browser:refresh()
+    -- An unbuilt browser reads the committed cache when it is first shown.
+    if self.browser then self.browser:refresh() end
     if self.progress then self.progress:safe("sync", false) end
     if self.highlights then self.highlights:safe("sync", false) end
 end

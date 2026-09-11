@@ -110,6 +110,16 @@ describe("Zotero feature UI", function()
         assert.equals("ATTACH01", browser.rows[1].key)
     end)
 
+    it("sets a tag from an instance whose browser was never built", function()
+        plugin.browser = nil
+        plugin:setFilterTag()
+        local dialog = runtime:last()
+        dialog.input = "Read"
+        dialog.buttons[1][3].callback()
+        assert.equals("Read", api.getFilterTag())
+        assert.is_nil(plugin.browser)
+    end)
+
     it("does not alter search history on cancel and returns to earlier searches", function()
         browser:displayCollection("COLLAAA1")
         browser:onLeftButtonTap()

@@ -218,6 +218,29 @@ describe("Zotero everyday navigation", function()
         assert.equals("home", browser.current_view.kind)
     end)
 
+    it("builds the browser on first open and on return from a reader", function()
+        api.getSettings():saveSetting("items_per_page", 2)
+        browser:navigate{ kind = "collection", key = "COLLAAA1" }
+        browser:onGotoPage(2)
+        local position = api.getBrowserPosition("users/4242")
+        for _, open in ipairs({
+            function(fresh) fresh:onZoteroOpenAction() end,
+            function(fresh)
+                local reader = FakeReader.new("/tmp/paper.pdf")
+                UI.bindReaderReturn(runtime, reader, "users/4242", position)
+                PluginLoader.loaded_plugins = { zotero = fresh }
+                reader:onHome()
+            end,
+        }) do
+            local fresh = setmetatable({ api = api, runtime = runtime, initialized = true }, { __index = Plugin })
+            open(fresh)
+            assert.equals(fresh.zotero_dialog, runtime:last())
+            assert.equals("COLLAAA1", fresh.browser.current_view.key)
+            assert.equals(2, fresh.browser.page)
+            fresh.browser:free()
+        end
+    end)
+
     it("does not leak the return destination into an account selected while reading", function()
         browser:navigate{ kind = "all" }
         browser:onGotoPage(2)

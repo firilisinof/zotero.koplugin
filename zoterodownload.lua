@@ -34,6 +34,19 @@ function Download.getLocalAttachmentPath(api, key)
     return api.util.isFile(path) and path or nil
 end
 
+--- List every stored file once, for presence checks in bulk. One listing replaces a
+--- stat per attachment when browsing On device. Example: API.getStoredPaths()[path].
+---@param api ZoteroAPI
+---@return table<string, boolean>
+function Download.getStoredPaths(api)
+    local stored = {}
+    for _, parent in ipairs(api.util.entries(api.storage_dir)) do
+        local directory = api.storage_dir .. "/" .. parent
+        for _, name in ipairs(api.util.entries(directory)) do stored[directory .. "/" .. name] = true end
+    end
+    return stored
+end
+
 ---@param api ZoteroAPI
 ---@param key string
 ---@return boolean

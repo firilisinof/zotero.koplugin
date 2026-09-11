@@ -55,6 +55,18 @@ function Util.discard(path)
     os.remove(path)
 end
 
+--- List a directory's entry names, empty when it does not exist. Example: Util.entries(dir).
+---@param path string
+---@return string[]
+function Util.entries(path)
+    local names = {}
+    if lfs.attributes(path, "mode") ~= "directory" then return names end
+    for name in lfs.dir(path) do
+        if name ~= "." and name ~= ".." then table.insert(names, name) end
+    end
+    return names
+end
+
 --- Test for a regular file. Example: Util.isFile(path).
 ---@param path string|nil
 ---@return boolean

@@ -129,15 +129,22 @@ function Index.getIndex(api)
     return api.index
 end
 
----@param api ZoteroAPI
 ---@param entry ZoteroRow
 ---@return ZoteroRow
-local function displayRow(api, entry)
-    -- File presence changes independently of metadata, including in subprocesses.
+local function displayRow(entry)
     local row = copyRow(entry)
     row.haystack = nil
-    row.downloaded = api.getLocalAttachmentPath(entry.key) ~= nil
     return row
+end
+
+--- Check the disk for the rows actually on screen. File presence changes independently of
+--- metadata, including in subprocesses, so it is never cached. Example: API.markDownloaded(rows).
+---@param api ZoteroAPI
+---@param rows ZoteroRow[]
+function Index.markDownloaded(api, rows)
+    for _, row in ipairs(rows) do
+        if row.file_format then row.downloaded = api.getLocalAttachmentPath(row.key) ~= nil end
+    end
 end
 
 ---@param api ZoteroAPI
@@ -164,7 +171,7 @@ function Index.displayCollection(api, key)
     if not key then return result end
     -- Hand back copies because the browser inserts its own rows and adds presentation fields.
     for _, entry in ipairs(api.getIndex().by_collection[key] or {}) do
-        table.insert(result, displayRow(api, entry))
+        table.insert(result, displayRow(entry))
     end
     return result
 end
@@ -191,19 +198,24 @@ function Index.displaySearchResults(api, query)
     local pattern = api.buildSearchPattern(query)
     local result = {}
     for _, entry in ipairs(api.getIndex().searchable) do
-        if string.match(entry.haystack, pattern) then table.insert(result, displayRow(api, entry)) end
+        if string.match(entry.haystack, pattern) then table.insert(result, displayRow(entry)) end
     end
     return result
 end
 
 --- List present attachments in the active library and tag filter. Example: API.displayOnDevice("").
+--- Membership in one storage listing replaces a disk check per attachment.
 ---@param api ZoteroAPI
 ---@param query string|nil
 ---@return ZoteroRow[]
 function Index.displayOnDevice(api, query)
-    local result = {}
+    local stored, result = api.getStoredPaths(), {}
     for _, row in ipairs(api.displaySearchResults(query or "")) do
-        if row.downloaded then table.insert(result, row) end
+        local _, path = api.getDirAndPath(row.key)
+        if path and stored[path] then
+            row.downloaded = true
+            table.insert(result, row)
+        end
     end
     return result
 end

@@ -124,7 +124,7 @@ is done in `API.init`, `API.setItems` and `API.setCollections`. Mutating the tab
 returned by `API.getItems()` in place without going through `setItems` leaves the
 index stale.
 
-`displayCollection` and `displaySearchResults` return copies because the browser inserts its own rows and adds presentation fields. The `downloaded` flag is computed from file presence while copying, so it stays fresh independently of the cached index. Changing `filter_tag` also drops the index.
+`displayCollection` and `displaySearchResults` return copies because the browser inserts its own rows and adds presentation fields. Neither checks the disk: `Browser:updateItems` calls `API.markDownloaded` for the rows of the visible page, so `downloaded` stays fresh independently of the cached index without a check per row. A row that no view has marked has no `downloaded` field. `displayOnDevice` filters against one `storage_dir` listing from `API.getStoredPaths` rather than checking each attachment, and opening a row still resolves through `getLocalAttachmentPath`. Changing `filter_tag` also drops the index.
 
 Attachment rows also carry `title`, `author`, `year`, `file_format` and `downloadable` for the native metadata layout in `zoterorow.lua`. The legacy `text` remains the sorting and search source. The browser treats items per page as a maximum and reduces capacity to fit two title lines plus secondary metadata at the active font size.
 

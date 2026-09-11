@@ -38,6 +38,10 @@ end
 ---@param no_recalculate_dimen boolean|nil
 function Browser:updateItems(select_number, no_recalculate_dimen)
     Menu.updateItems(self, select_number, no_recalculate_dimen)
+    -- Check the disk for this page only. A large library made every refresh stat every row.
+    local visible = {}
+    for index, item in ipairs(self.item_group) do visible[index] = item.entry end
+    self.api.markDownloaded(visible)
     for _, item in ipairs(self.item_group) do Row.decorate(item, self.row_metrics) end
 end
 

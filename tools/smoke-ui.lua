@@ -123,7 +123,10 @@ end)
 step("14-offline-browser", function()
     closeTop()
     browser:displayCollection("COLLAAA1")
-    assert(api.displaySearchResults("attention")[1].downloaded)
+    -- Views mark presence for the rows they render, so ask for it explicitly here.
+    local rows = api.displaySearchResults("attention")
+    api.markDownloaded(rows)
+    assert(rows[1].downloaded)
 end)
 
 step("15-metadata-collection", function()

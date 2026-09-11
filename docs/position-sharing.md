@@ -7,7 +7,7 @@ This opt-in plugin feature exchanges physical PDF pages and exact supported EPUB
 | Module | Responsibility |
 | --- | --- |
 | `zoteroprogress` | Enrollment, debounce, lifecycle, reconciliation and bounded conflict retry |
-| `zoteroprogressidentity` | Key owner, active library, attachment key, exact path and full MD5 verification |
+| `zoteroprogressidentity` | Key owner, active library, attachment key, exact path and full MD5 verification, reused while size, mtime, ctime and inode are unchanged |
 | `zoteroprogressstore` | Atomic, flushed JSON outbox with generations and remote acknowledgments |
 | `zoteroprogressremote` | Key permissions, attachment verification and conditional setting requests |
 | `zoteroprogressworker` | Non-modal subprocess; only the parent writes progress state |

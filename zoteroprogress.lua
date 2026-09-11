@@ -182,7 +182,7 @@ function Progress:accept(snapshot, result, session, revision)
         return
     end
     if session ~= self.session or not self:active() or revision ~= session.revision then self:checkpoint(); return end
-    if Identity.checksum(snapshot.identity.path, true) ~= snapshot.identity.md5 then
+    if Identity.checksum(snapshot.identity.path) ~= snapshot.identity.md5 then
         self.status = "Attachment changed while retrieving position"; return
     end
     if session.codec:capture() ~= snapshot.native then self:checkpoint(); return end
@@ -246,7 +246,7 @@ function Progress:sync(manual)
         if manual then self.runtime:message(self.status or "Open a verified Zotero attachment first.", 4) end
         return
     end
-    local md5 = Identity.checksum(snapshot.identity.path, true)
+    local md5 = Identity.checksum(snapshot.identity.path)
     if md5 ~= snapshot.identity.md5 then
         self.api.endOperation(); self.status = "Queued document has changed"
         snapshot.reason = self.status; self.store:put(snapshot); self:drainLater(snapshot.identity); return
@@ -290,7 +290,7 @@ function Progress:retryConflict(snapshot, manual)
     if not self:matchesAccount(snapshot.identity) or not self.runtime:isOnline() then return end
     local latest = self.store:get(snapshot.identity)
     if not latest or latest.reason or latest.value == nil then return end
-    if Identity.checksum(latest.identity.path, true) ~= latest.identity.md5 then return end
+    if Identity.checksum(latest.identity.path) ~= latest.identity.md5 then return end
     latest.pending = true; self.store:put(latest)
     if self.api.beginOperation("position") then self:startExchange(latest, manual, true) end
 end
@@ -313,7 +313,7 @@ function Progress:drainRecord(record)
     if not self:matchesAccount(record.identity) or not self.runtime:isOnline() or self.api.operation then return end
     record = self.store:get(record.identity)
     if not record or not record.pending or record.reason or record.value == nil then return end
-    if Identity.checksum(record.identity.path, true) ~= record.identity.md5 then return end
+    if Identity.checksum(record.identity.path) ~= record.identity.md5 then return end
     self.api.beginOperation("position")
     self:startExchange(record, false)
 end

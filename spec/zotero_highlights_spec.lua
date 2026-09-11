@@ -10,6 +10,7 @@ local Helpers = require("zoterohighlightutil")
 local util = require("util")
 local Codec = require("zoterohighlightcodec")
 local Fixtures = require("spec.support.fixtures")
+local FakeFileOpener = require("spec.support.fake_file_opener")
 
 for _, kind in ipairs({ "pdf", "epub" }) do
     describe("Zotero bidirectional " .. kind .. " highlights", function()
@@ -24,7 +25,7 @@ for _, kind in ipairs({ "pdf", "epub" }) do
             runtime = Runtime.new(); reader = Reader.new(path, kind); native = reader:highlight(kind)
             sync = Highlights.new(api, runtime)
         end)
-        after_each(function() reader:close() end)
+        after_each(function() reader:close(); Identity.open = io.open end)
         local function enable()
             sync:toggle(); runtime:work()
             sync:attach(reader, { key = "ATTACH01", path = path, library = "users/4242" })
@@ -172,6 +173,12 @@ for _, kind in ipairs({ "pdf", "epub" }) do
             server.item_headers = nil; runtime.clock = runtime.clock + 91; server.error_code = 403; exchange()
             sync = Highlights.new(api, runtime); local requests = #server.calls; sync:sync()
             assert.equals(requests, #server.calls); assert.is_true(sync.paused)
+        end)
+        it("captures, exchanges and accepts without rehashing an unchanged attachment", function()
+            -- Setup already hashed the attachment, so any later full read is a rehash.
+            local opener = FakeFileOpener.new(); Identity.open = opener.open
+            enable(); exchange(); native.note = "Edited"; sync:changed(); exchange()
+            assert.equals("Edited", remote().data.annotationComment); assert.equals(0, opener:readCount(path))
         end)
         it("cancels background work and removes scratch files on suspend", function()
             enable(); sync:sync(); local job = runtime.jobs[1]

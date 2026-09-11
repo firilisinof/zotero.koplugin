@@ -1,6 +1,9 @@
 local sha2 = require("ffi/sha2")
 local lfs = require("libs/libkoreader-lfs")
-local Identity = {}
+local Identity = {
+    -- Specs replace the opener to count full attachment reads. Files remain real.
+    open = io.open,
+}
 local checksums = {}
 
 ---@param path string
@@ -19,6 +22,8 @@ function Identity.keyHash(key)
 end
 
 --- Hash the complete attachment, invalidating on file replacement or modification.
+--- Reader paths reuse a hash while size, mtime, ctime and inode match, because hashing a large
+--- PDF blocks the UI on e-ink devices. Only offline tools force a rehash. Example: Identity.checksum(path).
 ---@param path string
 ---@param force boolean|nil
 ---@return string|nil, string|nil
@@ -26,7 +31,7 @@ function Identity.checksum(path, force)
     local stamp = fileStamp(path)
     if not stamp then return nil, "Attachment file is missing: " .. tostring(path) end
     if not force and checksums[path] and checksums[path].stamp == stamp then return checksums[path].md5 end
-    local file, err = io.open(path, "rb")
+    local file, err = Identity.open(path, "rb")
     if not file then return nil, err end
     local digest = sha2.md5()
     while true do
@@ -53,7 +58,7 @@ function Identity.capture(api, key, path, authorization)
     if not auth or auth.key_hash ~= Identity.keyHash(api.getAPIKey() or "") then return nil, "Check position-sharing permissions in Settings" end
     local item = api.getItems()[key]
     if not item or api.getLocalAttachmentPath(key) ~= path then return nil, "Attachment identity or path is unavailable" end
-    local md5, err = Identity.checksum(path, true)
+    local md5, err = Identity.checksum(path)
     if not md5 then return nil, err end
     if type(item.data.md5) ~= "string" or item.data.md5:lower() ~= md5 then return nil, "The local file has no matching Zotero checksum; synchronize library metadata" end
     return { owner = auth.owner, library = api.getLocalLibraryPrefix(), key = key, path = path,

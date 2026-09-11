@@ -137,6 +137,8 @@ end
 
 function Plugin:onSuspend()
     if self.sync_job then self.sync_job:cancel("suspend") end
+    -- Browser page turns stay in memory. Persist them before the device may power off.
+    if self.api.settings then self.api.saveModifiedItems() end
     if self.progress then self.progress:safe("suspend") end
     if self.highlights then self.highlights:safe("suspend") end
 end

@@ -151,7 +151,13 @@ function Browser:savePosition()
     self.api.saveBrowserPosition(self.position_library, { view = self.current_view, paths = self.paths })
 end
 
---- Save native page turns, including swipes and page jumps. Example: browser:onGotoPage(2).
+--- Write the current position to disk at a boundary where the browser goes away. Example: browser:flushPosition().
+function Browser:flushPosition()
+    self:savePosition()
+    self.api.saveModifiedItems()
+end
+
+--- Save native page turns, including swipes and page jumps, in memory only. Example: browser:onGotoPage(2).
 ---@param page integer
 ---@return boolean
 function Browser:onGotoPage(page)
@@ -163,7 +169,7 @@ end
 --- Save before the menu closes or returns to the file manager. Example: browser:onCloseAllMenus().
 ---@return boolean
 function Browser:onCloseAllMenus()
-    self:savePosition()
+    self:flushPosition()
     return Menu.onCloseAllMenus(self)
 end
 
@@ -245,7 +251,7 @@ end
 function Browser:openAttachment(path, key)
     local progress = self.api.progress
     local reading_context = progress and progress:safe("prepare", key, path)
-    self:savePosition()
+    self:flushPosition()
     local library = self.position_library or self.api.getLocalLibraryPrefix() or "local"
     local position = self.api.getBrowserPosition(library)
     self.close_callback()

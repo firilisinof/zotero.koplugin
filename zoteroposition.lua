@@ -66,7 +66,9 @@ function Position.getBrowserPosition(api, library)
     return copyPosition(type(positions) == "table" and positions[library] or nil)
 end
 
---- Persist navigation separately from metadata and documents. Example: API.saveBrowserPosition("users/42", position).
+--- Record navigation separately from metadata and documents. Example: API.saveBrowserPosition("users/42", position).
+--- Every plugin instance shares api.settings, so this stays in memory. Rewriting meta.lua on each
+--- page turn is slow on e-ink devices, so callers flush when the browser closes, opens a document or the device suspends.
 ---@param api ZoteroAPI
 ---@param library string
 ---@param position ZoteroBrowserPosition
@@ -75,7 +77,6 @@ function Position.saveBrowserPosition(api, library, position)
     if type(positions) ~= "table" then positions = {} end
     positions[library] = copyPosition(position)
     api.settings:saveSetting("browser_positions", positions)
-    api.settings:flush()
 end
 
 return Position

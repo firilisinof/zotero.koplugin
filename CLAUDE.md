@@ -182,6 +182,8 @@ Attachment rows also carry `title`, `author`, `year`, `file_format` and `downloa
 
 Reading-position sharing is off by default. Its only production write is a conditional PUT to one `lastPageIndex` synced setting. Personal and group settings both live under the API key owner's `/users/<owner>/settings`; group settings include the group ID in their name. Metadata cursors remain independent. The parent alone writes the durable progress outbox; network work runs in the non-modal child with the existing operation lock. Never log API credentials.
 
+`zoteroprogressstore.lua` decodes each outbox once per Store and writes through, because only the parent writes it and both coordinators are shared through `api.progress` and `api.highlights`. `get`, `load` and `put` copy records the way the old JSON round trip did: two fields holding one table become separate tables, so capturing a local edit into `entries` cannot rewrite the `delivery.before` import baseline. An unchanged record writes nothing, and a failed write rolls the cache back to what the disk holds. Corruption written behind the cache is only noticed by the next restarted coordinator.
+
 `make test` runs against the existing compiled emulator without triggering a native rebuild. `tools/check-position-oracle.py` independently executes real crengine and CFI/sanitizer code extracted from installed Zotero 10.0.1. `tools/smoke-progress.lua` exercises actual ReaderUI lifecycle with offline fixtures and a fresh `/tmp` KO_HOME. Live checks are separate and explicitly use only dedicated attachments; see `docs/position-sharing.md`.
 
 ## Optional highlight writes

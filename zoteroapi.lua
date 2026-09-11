@@ -32,19 +32,38 @@ function API.init(zotero_dir)
     API.reconcileLibrary()
 end
 
+--- Locate a live metadata cache file. Example: API.getCachePath("items").
+---@param name string
+---@return string
+function API.getCachePath(name)
+    return API.zotero_dir .. "/" .. name .. ".json"
+end
+
 ---@param name string
 ---@return table<string, ZoteroItem>
 local function readCache(name)
-    local contents = Util.read(API.zotero_dir .. "/" .. name .. ".json")
+    local contents = Util.read(API.getCachePath(name))
     return contents and Util.decode(contents) or {}
 end
 
 ---@param name string
 ---@param entries table<string, ZoteroItem>
 local function writeCache(name, entries)
-    local err = Util.write(API.zotero_dir .. "/" .. name .. ".json", Util.encode(entries))
+    local err = Util.write(API.getCachePath(name), Util.encode(entries))
     assert(not err, err)
     API[name], API.index = entries, nil
+end
+
+--- Replace a live cache with a file staged by the sync child. Example: API.adoptCache("items", stage).
+---@param name string
+---@param stage string
+---@return string|nil error
+function API.adoptCache(name, stage)
+    local path = API.getCachePath(name)
+    local ok, err = os.rename(stage, path)
+    if not ok then return ("Could not replace %s with staged %s: %s"):format(path, stage, tostring(err)) end
+    -- The next reader parses the adopted file. The parent never holds the child's tables.
+    API[name], API.index = nil, nil
 end
 
 --- Read cached items lazily. Example: API.getItems()[key].

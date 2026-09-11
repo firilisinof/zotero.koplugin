@@ -9,7 +9,7 @@ The six cheap wins, opt-in PDF/EPUB reading-position sharing, and opt-in bidirec
 3. **Collection downloads.** Hold a collection row and choose “Download collection”. Only direct attachments matching the active tag filter are included. Current files are skipped. Each transfer runs in KOReader's dismissible subprocess helper, allowing progress updates and cancellation. A summary lists completed, current, failed and cancelled files, including each failure. One failure does not stop the remaining files.
 4. **Zotero notes.** Hold an attachment row and choose “Show Zotero notes”. The viewer displays the parent publication's non-deleted child notes, with HTML tags removed and entities decoded. Notes stay local and read-only. Standalone notes and annotations are not separate browser rows.
 5. **Tag filter.** Settings accepts one exact, case-sensitive tag, with a clear action to disable filtering. Parent tags take precedence over attachment tags. Standalone and orphaned attachments use their own tags. Collection navigation remains visible, and both browsing and search refresh immediately.
-6. **Sync convenience.** The menu shows the last successful sync time. Startup sync and sync on browsing when the cache is older than 24 hours are separate opt-in settings. Automatic triggers require credentials and an existing network connection, never enable Wi-Fi, and do not overlap other operations. Startup is attempted once per KOReader process. There is no periodic retry timer.
+6. **Sync convenience.** The menu shows the last successful sync time. Startup sync and sync on browsing when the cache is older than 24 hours are separate opt-in settings. Automatic triggers require credentials and an existing network connection, never enable Wi-Fi, and do not overlap other operations. Startup is attempted once per KOReader process. There is no periodic retry timer. Sync fetches in a non-modal child that writes staged caches, and only the parent commits them after checking the account. Cancellation, failure and suspend keep the previous cache.
 
 ## Download and cache compatibility
 
@@ -23,9 +23,9 @@ The API facade remains `zoteroapi.lua`, with settings, indexing, transport, down
 
 ## Verification
 
-`make test` runs the offline API, browser, settings, sync and download regression suites against the local KOReader build. Real temporary files and zip fixtures cover storage and archive behavior. Named UI and task-runner fakes cover scheduling and cancellation deterministically.
+`make test` runs the offline API, browser, settings, sync and download regression suites against the local KOReader build. Real temporary files and zip fixtures cover storage and archive behavior. Named UI, task-runner and worker fakes cover scheduling and cancellation deterministically.
 
-`tools/smoke-ui.lua` exercises real emulator widgets and subprocess downloads using fixture data and a fresh temporary `KO_HOME`. It saves screenshots there and checks group selection, notes, filters, download progress, cancellation, cached browsing and sidecar preservation. See README for its invocation.
+`tools/smoke-ui.lua` exercises real emulator widgets and subprocess downloads using fixture data and a fresh temporary `KO_HOME`. It saves screenshots there and checks group selection, notes, filters, download progress, cancellation, cached browsing, sidecar preservation and background library sync. See README for its invocation.
 
 ## Highlight sync
 

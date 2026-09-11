@@ -71,6 +71,8 @@ Settings → Filter by tag matches one full tag exactly, including case. Publica
 
 “Sync on startup” and “Sync on browse when older than 24 hours” are disabled by default. Both require configured credentials and an existing network connection. Startup is attempted once per KOReader session and is skipped when offline. Browser-open sync runs when no successful sync is recorded or the last one is more than 24 hours old. Manual sync remains available at any time when another operation is not running.
 
+Library sync runs in the background. Automatic sync never blocks browsing or reading. Manual sync shows a message that cancels it when tapped. Cancelling, suspending the device, a network failure or changing the account keeps the previous cache, and **Maintenance → Resync entire collection** replaces the cache only after the full fetch succeeds.
+
 The menu's last-sync time changes only after a successful complete sync. There is no periodic background sync or automatic Wi-Fi prompt.
 
 ### Sync highlights
@@ -140,4 +142,4 @@ For a fixture-only UI smoke test, run the following from the built emulator's `k
 KO_HOME="$(mktemp -d /tmp/zotero-smoke.XXXXXX)" ./luajit /absolute/path/to/zotero.koplugin/tools/smoke-ui.lua
 ```
 
-The script opens the emulator, exercises the real dialogs and subprocess download flow, then opens KOReader's local PDF and EPUB test fixtures with credentials removed. It checks automatic library return through native reader controls, Home and Back, Continue reading, the Zotero Open event, ordinary document return, library isolation, unchanged document bytes, and PDF sidecars and reading progress. Its temporary profile contains screenshots. It never uses your real Zotero credentials or contacts Zotero.
+The script opens the emulator, exercises the real dialogs, subprocess download flow and background library sync, then opens KOReader's local PDF and EPUB test fixtures with credentials removed. It checks automatic library return through native reader controls, Home and Back, Continue reading, the Zotero Open event, ordinary document return, library isolation, unchanged document bytes, and PDF sidecars and reading progress. Its temporary profile contains screenshots. It never uses your real Zotero credentials or contacts Zotero.

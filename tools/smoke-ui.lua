@@ -342,6 +342,63 @@ step("37-ordinary-document-return", function()
     assert(offline_http:callCount() == 0)
 end)
 
+-- Library sync runs in a real forked worker. Only its small result crosses the pipe.
+local lfs = require("libs/libkoreader-lfs")
+local items_inode
+local function stageClear()
+    for _, path in pairs(api.getSyncStage()) do
+        if lfs.attributes(path) or lfs.attributes(path .. ".tmp") then return false end
+    end
+    return true
+end
+step("38-sync-progress", function()
+    plugin = assert(require("pluginloader"):getPluginInstance("zotero"))
+    browser = plugin.browser
+    env:credentials()
+    api.http = env.http
+    env:syncRoutes()
+    items_inode = lfs.attributes(api.getCachePath("items"), "ino")
+    plugin:onZoteroOpenAction()
+    plugin:onZoteroSyncAction()
+    assert(api.operation == "sync")
+    assert(top().text:find("tap to cancel", 1, true))
+end)
+step("39-sync-cancelled", function()
+    top():onTapClose()
+    assert(not api.operation)
+    assert(api.getLastSync() == 0)
+    assert(lfs.attributes(api.getCachePath("items"), "ino") == items_inode)
+    assert(stageClear())
+    assert(top().text:find("cancelled", 1, true))
+end)
+step("40-sync-running", function()
+    closeTop()
+    plugin:onZoteroSyncAction()
+end)
+step("41-sync-committed", function()
+    assert(not api.operation, "sync should be finished")
+    assert(api.getLastSync() > 0)
+    assert(api.getLibraryVersion() == "1230")
+    assert(lfs.attributes(api.getCachePath("items"), "ino") ~= items_inode)
+    assert(stageClear())
+    assert(top().text == "Success.")
+end)
+step("42-auto-sync-browsing", function()
+    closeTop()
+    api.setSyncOnOpen(true)
+    api.setLastSync(1)
+    plugin:maybeAutoSync("open")
+    assert(api.operation == "sync")
+    assert(top() == plugin.zotero_dialog)
+    browser:displayCollection("COLLAAA1")
+end)
+step("43-auto-sync-committed", function()
+    assert(not api.operation, "automatic sync should be finished")
+    assert(api.getLastSync() > 1)
+    assert(stageClear())
+    assert(top() == plugin.zotero_dialog)
+end)
+
 local index, finished = 0, false
 local function advance()
     index = index + 1
@@ -351,13 +408,14 @@ local function advance()
     if not ok then print("SMOKE FAIL: " .. tostring(err)) UIManager:quit(1) return end
     -- Allow the first reader's temporary database notification to leave the screenshots.
     local delay = current.name == "23-offline-pdf" and 3.5 or current.name == "10-progress" and 1.5
-        or current.name == "12-cancel-progress" and 0.05 or 0.35
+        or (current.name == "40-sync-running" or current.name == "42-auto-sync-browsing") and 3
+        or (current.name == "12-cancel-progress" or current.name == "38-sync-progress") and 0.05 or 0.35
     UIManager:scheduleIn(delay, advance)
 end
 
 plugin:onZoteroOpenAction()
 UIManager:scheduleIn(0.1, advance)
-UIManager:scheduleIn(45, function() print("SMOKE TIMEOUT") UIManager:quit(1) end)
+UIManager:scheduleIn(60, function() print("SMOKE TIMEOUT") UIManager:quit(1) end)
 local result = UIManager:run()
 Device:exit()
 os.exit(finished and (result or 0) or 1)

@@ -67,14 +67,19 @@ local function keepEntry(entry)
 end
 
 ---@class ZoteroDeltaSource
----@field endpoint string
+---@field endpoint string Web API endpoint, also the name of its cache file
 ---@field filter string Extra query parameters appended to the delta URL
 ---@field compact fun(entry: ZoteroItem): ZoteroItem|nil
+---@field cached fun(api: ZoteroAPI): table<string, ZoteroItem>
 
----@type ZoteroDeltaSource
-local ITEM_SOURCE = { endpoint = "items", filter = "&itemType=-annotation", compact = compactItem }
----@type ZoteroDeltaSource
-local COLLECTION_SOURCE = { endpoint = "collections", filter = "", compact = keepEntry }
+-- Items come first. Their version is the earlier one when both fetches race a change.
+---@type ZoteroDeltaSource[]
+local SOURCES = {
+    { endpoint = "items", filter = "&itemType=-annotation", compact = compactItem,
+        cached = function(api) return api.getItems() end },
+    { endpoint = "collections", filter = "", compact = keepEntry,
+        cached = function(api) return api.getCollections() end },
+}
 
 ---@param existing table<string, ZoteroItem>
 ---@param compact fun(entry: ZoteroItem): ZoteroItem|nil
@@ -121,12 +126,14 @@ end
 
 ---@param api ZoteroAPI
 ---@param source ZoteroDeltaSource
----@param existing table<string, ZoteroItem>
+---@param since string|number
+---@param rebuild boolean Start from an empty cache, so entries the server no longer lists disappear
 ---@return ZoteroDelta|nil, string|nil
-local function fetchDelta(api, source, existing)
-    local entries, changed = copyEntries(existing, source.compact)
+local function fetchDelta(api, source, since, rebuild)
+    local entries, changed = copyEntries(rebuild and {} or source.cached(api), source.compact)
+    changed = changed or rebuild
     local url = ("https://api.zotero.org/%s/%s?since=%s&includeTrashed=true%s")
-        :format(api.getLibraryPrefix(), source.endpoint, api.getLibraryVersion(), source.filter)
+        :format(api.getLibraryPrefix(), source.endpoint, since, source.filter)
     local version, err = api.fetchCollectionPaginated(url, api.getHeaders(api.getAPIKey()), function(page)
         changed = mergePage(entries, page, source.compact) or changed
     end)
@@ -134,24 +141,107 @@ local function fetchDelta(api, source, existing)
     return { entries = entries, changed = changed, version = version }
 end
 
---- Sync read-only deltas and stamp successful completion. Example: API.syncAllItems().
+---@class ZoteroStagedCache
+---@field changed boolean Whether a staged file replaces the live cache
+---@field version string|nil Library version the fetch observed
+
+---@class ZoteroSyncResult
+---@field items ZoteroStagedCache|nil
+---@field collections ZoteroStagedCache|nil
+---@field error string|nil
+
+---@param api ZoteroAPI
+---@param source ZoteroDeltaSource
+---@param since string|number
+---@param rebuild boolean
+---@param path string
+---@return ZoteroStagedCache|nil, string|nil
+local function stageDelta(api, source, since, rebuild, path)
+    local delta, err = fetchDelta(api, source, since, rebuild)
+    if err then return nil, err end
+    -- An unchanged cache would cost a full JSON encode and a rebuilt index for nothing.
+    err = delta.changed and api.util.write(path, api.util.encode(delta.entries)) or nil
+    if err then return nil, err end
+    return { changed = delta.changed, version = delta.version }
+end
+
+--- Name the staged caches a sync writes beside the live ones. Example: API.getSyncStage().items.
+---@param api ZoteroAPI
+---@return table<string, string>
+function Sync.getSyncStage(api)
+    local stage = {}
+    for _, source in ipairs(SOURCES) do stage[source.endpoint] = api.getCachePath(source.endpoint) .. ".sync" end
+    return stage
+end
+
+--- Remove staged caches, including a killed child's unfinished writes. Example: API.discardSyncStage(stage).
+---@param api ZoteroAPI
+---@param stage table<string, string>
+function Sync.discardSyncStage(api, stage)
+    for _, path in pairs(stage) do api.util.discard(path) end
+end
+
+--- Fetch deltas into staged files, leaving live caches and settings untouched. Runs in the
+--- sync child, so only the small result crosses the pipe. Example: API.stageLibrary(false, stage).
+---@param api ZoteroAPI
+---@param rebuild boolean Fetch from version 0 instead of patching the current cache
+---@param stage table<string, string>
+---@return ZoteroSyncResult
+function Sync.stageLibrary(api, rebuild, stage)
+    local err = api.ensureKeyAndID()
+    if err then return { error = err } end
+    local since, result = rebuild and 0 or api.getLibraryVersion(), {}
+    for _, source in ipairs(SOURCES) do
+        local staged, stage_error = stageDelta(api, source, since, rebuild, stage[source.endpoint])
+        if stage_error then return { error = stage_error } end
+        result[source.endpoint] = staged
+    end
+    return result
+end
+
+---@param result ZoteroSyncResult
+---@return string|nil
+local function resultError(result)
+    for _, source in ipairs(SOURCES) do
+        local staged = result[source.endpoint]
+        if type(staged) ~= "table" or type(staged.changed) ~= "boolean" then
+            return ("Invalid sync result for %s: %s, expected { changed = boolean, version = string|nil }")
+                :format(source.endpoint, tostring(staged))
+        end
+    end
+end
+
+--- Adopt a finished child's staged caches and stamp success. Only the parent commits.
+--- Example: API.commitLibrary(result, stage).
+---@param api ZoteroAPI
+---@param result ZoteroSyncResult
+---@param stage table<string, string>
+---@return string|nil error
+function Sync.commitLibrary(api, result, stage)
+    local err = resultError(result)
+    if err then return err end
+    for _, source in ipairs(SOURCES) do
+        local name = source.endpoint
+        -- A later failure leaves the version unchanged, so the next delta reapplies over this cache.
+        err = result[name].changed and api.adoptCache(name, stage[name]) or nil
+        if err then return err end
+    end
+    -- Each fetch observes a potentially different version. The earlier one avoids
+    -- skipping changes made between requests on the next sync.
+    api.setLibraryVersion(api.earlierVersion(result.items.version, result.collections.version))
+    api.setLastSync(os.time())
+    api.saveModifiedItems()
+end
+
+--- Sync in-process through the background job's stage and commit steps. Example: API.syncAllItems().
 ---@param api ZoteroAPI
 ---@return string|nil
 function Sync.syncAllItems(api)
-    local err = api.ensureKeyAndID()
-    if err then return err end
-    local items, items_error = fetchDelta(api, ITEM_SOURCE, api.getItems())
-    if items_error then return items_error end
-    local collections, collections_error = fetchDelta(api, COLLECTION_SOURCE, api.getCollections())
-    if collections_error then return collections_error end
-    -- An unchanged cache would cost a full JSON encode and a rebuilt index for nothing.
-    if items.changed then api.setItems(items.entries) end
-    if collections.changed then api.setCollections(collections.entries) end
-    -- Each fetch observes a potentially different version. The earlier one avoids
-    -- skipping changes made between requests on the next sync.
-    api.setLibraryVersion(api.earlierVersion(items.version, collections.version))
-    api.setLastSync(os.time())
-    api.saveModifiedItems()
+    local stage = api.getSyncStage()
+    local result = api.stageLibrary(false, stage)
+    local err = result.error or api.commitLibrary(result, stage)
+    api.discardSyncStage(stage)
+    return err
 end
 
 --- Reset metadata while retaining documents and their sidecars. Example: API.resetSyncState().

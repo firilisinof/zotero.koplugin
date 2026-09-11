@@ -4,6 +4,7 @@ local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local FrameContainer = require("ui/widget/container/framecontainer")
 local DataStorage = require("datastorage")
 local Browser = require("zoterobrowser")
+local SyncJob = require("zoterosyncjob")
 local _ = require("gettext")
 
 local Plugin = WidgetContainer:new{
@@ -65,6 +66,16 @@ function Plugin:initAPIAndBrowser()
         padding = 0, bordersize = 0, background = Blitbuffer.COLOR_WHITE, self.browser,
     }
     self.browser.show_parent = self.zotero_dialog
+    self.api.sync_job = self.api.sync_job or SyncJob.new(self.api, self.runtime)
+    self:attachSyncJob(self.api.sync_job)
+end
+
+--- Share one sync job across plugin instances. A sync outlives the instance that started it,
+--- so the newest instance, whose browser can be visible, handles its commit. Example: plugin:attachSyncJob(job).
+---@param job table
+function Plugin:attachSyncJob(job)
+    self.sync_job = job
+    job.on_commit = function() self:afterSyncCommit() end
 end
 
 --- Browse cached metadata immediately. Example: plugin:onZoteroOpenAction().
@@ -87,42 +98,21 @@ end
 function Plugin:maybeAutoSync(trigger)
     if not self.api.shouldAutoSync(trigger, self.runtime:now()) then return end
     if not self.runtime:isOnline() then return end
-    self:startSync(false, true)
+    self.sync_job:start(false, true)
 end
 
---- Synchronize explicitly, optionally rewinding the delta. Example: plugin:onZoteroSyncAction(true).
----@param reset boolean|nil
+--- Synchronize explicitly, optionally refetching everything. Example: plugin:onZoteroSyncAction(true).
+---@param reset boolean|nil Fetch from version 0, keeping the current cache until that succeeds
 function Plugin:onZoteroSyncAction(reset)
     if not self:checkInitialized() then return end
-    self:startSync(reset == true, false)
+    self.sync_job:start(reset == true, false)
 end
 
----@param reset boolean
----@param automatic boolean
-function Plugin:startSync(reset, automatic)
-    if not self.api.beginOperation("sync") then
-        if not automatic then self.runtime:message(_("A Zotero operation is already running."), 3) end
-        return
-    end
-    self.runtime:schedule(function() self:performSync(reset, automatic) end)
-end
-
----@param reset boolean
----@param automatic boolean
-function Plugin:performSync(reset, automatic)
-    local progress = self.runtime:message(_("Synchronizing Zotero library. This might take some time."))
-    self.runtime:repaint()
-    local ok, err = pcall(function()
-        if reset then self.api.resetSyncState() end
-        return self.api.syncAllItems()
-    end)
-    self.runtime:close(progress)
-    self.api.endOperation()
+--- Show committed metadata and hand off to position and highlight syncs. Example: plugin:afterSyncCommit().
+function Plugin:afterSyncCommit()
     self.browser:refresh()
-    if not ok or err then self.runtime:message(tostring(err), 5) return end
     if self.progress then self.progress:safe("sync", false) end
     if self.highlights then self.highlights:safe("sync", false) end
-    if not automatic then self.runtime:message(_("Success."), 3) end
 end
 
 --- Forward native lifecycle events only for the bound Zotero reader.
@@ -146,6 +136,7 @@ function Plugin:onCloseDocument()
 end
 
 function Plugin:onSuspend()
+    if self.sync_job then self.sync_job:cancel("suspend") end
     if self.progress then self.progress:safe("suspend") end
     if self.highlights then self.highlights:safe("suspend") end
 end

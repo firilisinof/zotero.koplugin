@@ -1,4 +1,4 @@
-local Helpers = require("zoterohighlightutil")
+local util = require("util")
 local Registry = require("document/documentregistry")
 local Reader = {}
 Reader.__index = Reader
@@ -29,6 +29,6 @@ end
 function Reader:bookmark(kind)
     local item = { text = "unrelated bookmark", page = kind == "epub" and "/body/DocFragment[1]/body/p[1]/text().0" or 2 }
     self.annotation.annotations[#self.annotation.annotations + 1] = item
-    return Helpers.copy(item)
+    return util.tableDeepCopy(item)
 end
 return Reader

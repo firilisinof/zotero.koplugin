@@ -1,4 +1,4 @@
-local JSON = require("json")
+local rapidjson = require("rapidjson")
 local LuaSettings = require("luasettings")
 local lfs = require("libs/libkoreader-lfs")
 local util = require("util")
@@ -69,18 +69,23 @@ function Util.openSettings(path)
     return LuaSettings:open(path)
 end
 
---- Decode cached JSON. Example: Util.decode("{}").
+--- Decode JSON, raising on malformed input like LuaJSON did. Example: Util.decode("{}").
+--- JSON null decodes to the truthy rapidjson.null. Arrays and objects keep their kind when re-encoded.
 ---@param contents string
 ---@return table
 function Util.decode(contents)
-    return JSON.decode(contents)
+    local decoded, err = rapidjson.decode(contents)
+    -- Omit the contents themselves: a Zotero key response carries the API key.
+    if decoded == nil then error(("Could not decode JSON: %s, expected a JSON document in %d bytes"):format(tostring(err), #contents), 2) end
+    return decoded
 end
 
---- Encode cache entries. Example: Util.encode(items).
+--- Encode JSON. Example: Util.encode(items).
+--- Only string keys and sequences survive: rapidjson silently drops sparse numeric keys.
 ---@param entries table
 ---@return string
 function Util.encode(entries)
-    return JSON.encode(entries)
+    return rapidjson.encode(entries)
 end
 
 --- Strip note markup and decode entities. Example: Util.plainText("<p>Read</p>").

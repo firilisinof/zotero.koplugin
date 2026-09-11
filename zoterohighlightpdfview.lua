@@ -1,4 +1,4 @@
-local Helpers = require("zoterohighlightutil")
+local util = require("util")
 local Geom = require("ui/geometry")
 local PDFView = {}
 
@@ -20,7 +20,7 @@ local function exactBoxes(item, page, first, last)
     local part = saved.ext and (saved.ext[page] or saved.ext[tostring(page)]) or saved
     if not part or not samePoint(part.pos0, first) or not samePoint(part.pos1, last) then return end
     local boxes = {}
-    for _, box in ipairs(part.pboxes or {}) do boxes[#boxes + 1] = Geom:new(Helpers.copy(box)) end
+    for _, box in ipairs(part.pboxes or {}) do boxes[#boxes + 1] = Geom:new(util.tableDeepCopy(box)) end
     return boxes
 end
 
@@ -57,8 +57,8 @@ end
 ---@param item table
 function PDFView.remember(item)
     if not item.pboxes then return end
-    item.zotero_pdf_geometry = { pos0 = Helpers.copy(item.pos0), pos1 = Helpers.copy(item.pos1),
-        pboxes = Helpers.copy(item.pboxes), ext = item.ext and Helpers.copy(item.ext) or nil }
+    item.zotero_pdf_geometry = { pos0 = util.tableDeepCopy(item.pos0), pos1 = util.tableDeepCopy(item.pos1),
+        pboxes = util.tableDeepCopy(item.pboxes), ext = item.ext and util.tableDeepCopy(item.ext) or nil }
 end
 
 return PDFView

@@ -1,4 +1,6 @@
 local Helpers = require("zoterohighlightutil")
+local util = require("util")
+local ZoteroUtil = require("zoteroutil")
 local Range = require("zoterocfirange")
 local Codec = {}
 Codec.__index = Codec
@@ -78,7 +80,8 @@ function Codec:decodePosition(position)
         native = self.pdf:decodeBoxes(position.pageIndex + 1, position.rects)
         if position.nextPageRects then
             local last = self.pdf:decodeBoxes(position.pageIndex + 2, position.nextPageRects)
-            native.ext = { [position.pageIndex + 1] = Helpers.copy(native), [position.pageIndex + 2] = last }
+            -- String page keys survive the JSON journal, as in Helpers.native.
+            native.ext = { [tostring(position.pageIndex + 1)] = util.tableDeepCopy(native), [tostring(position.pageIndex + 2)] = last }
             native.pos1 = last.pos1
         end
     end
@@ -108,7 +111,7 @@ function Codec:remote(item)
     assert(fields.itemType == "annotation", "Expected Zotero annotation item")
     local value = { text = fields.annotationText or "", comment = fields.annotationComment or "",
         color = (fields.annotationColor or ""):lower(), kind = fields.annotationType,
-        position = type(fields.annotationPosition) == "string" and require("json").decode(fields.annotationPosition) or fields.annotationPosition }
+        position = type(fields.annotationPosition) == "string" and ZoteroUtil.decode(fields.annotationPosition) or fields.annotationPosition }
     -- Preserve every position extension on the server: only canonical fields are compared.
     return self:encode(self:decode(value))
 end
@@ -129,7 +132,7 @@ function Codec:fields(value)
         sort_index = string.format("%05d|%06d|%05d", page, 0, math.max(0, math.floor(native.pboxes[1].y)))
     end
     return { annotationType = value.kind, annotationText = value.text, annotationComment = value.comment,
-        annotationColor = value.color, annotationPosition = require("json").encode(value.position),
+        annotationColor = value.color, annotationPosition = ZoteroUtil.encode(value.position),
         annotationPageLabel = tostring(page + 1), annotationSortIndex = sort_index }
 end
 

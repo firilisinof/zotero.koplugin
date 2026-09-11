@@ -1,4 +1,5 @@
 local Helpers = require("zoterohighlightutil")
+local util = require("util")
 local Remote = require("zoterohighlightremote")
 local Merge = require("zoterohighlightmerge")
 local Codec = require("zoterohighlightcodec")
@@ -152,7 +153,7 @@ end
 local function run(context)
     Remote.verify(context.api, context.secret, context.snapshot.identity)
     context.items = Remote.list(context.api, context.secret, context.snapshot.identity)
-    local entries = Helpers.copy(context.snapshot.entries)
+    local entries = util.tableDeepCopy(context.snapshot.entries)
     for _, entry in pairs(entries) do entry.error = nil end
     local warnings = importCandidates(context, entries)
     for _, entry in pairs(entries) do

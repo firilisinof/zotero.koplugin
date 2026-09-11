@@ -7,6 +7,7 @@ local Runtime = require("spec.support.fake_progress_runtime")
 local Highlights = require("zoterohighlights")
 local Identity = require("zoteroprogressidentity")
 local Helpers = require("zoterohighlightutil")
+local util = require("util")
 local Codec = require("zoterohighlightcodec")
 local Fixtures = require("spec.support.fixtures")
 
@@ -36,7 +37,7 @@ for _, kind in ipairs({ "pdf", "epub" }) do
         end
         local function remote() return assert(server.annotations[entry().key]) end
         local function edit(fields)
-            local updated = Helpers.copy(remote().data)
+            local updated = util.tableDeepCopy(remote().data)
             for key, value in pairs(fields) do updated[key] = value end
             server:insert(entry().key, updated)
         end
@@ -139,7 +140,7 @@ for _, kind in ipairs({ "pdf", "epub" }) do
         end)
         it("imports new remote highlights and refreshes the native highlight cache", function()
             enable(); exchange()
-            local fields = Helpers.copy(remote().data); fields.annotationText = "Different quoted text"; fields.annotationComment = "New desktop highlight"
+            local fields = util.tableDeepCopy(remote().data); fields.annotationText = "Different quoted text"; fields.annotationComment = "New desktop highlight"
             server:insert("ABCDEFGH", fields); exchange()
             assert.equals(2, #reader.annotation.annotations); assert.truthy(reader.refreshed)
             exchange(); assert.equals(2, #reader.annotation.annotations); assert.equals(1, server.writes)
@@ -208,7 +209,7 @@ for _, kind in ipairs({ "pdf", "epub" }) do
         end)
         it("preserves remote position extensions when only a note is edited", function()
             enable(); exchange()
-            local fields = Helpers.copy(remote().data)
+            local fields = util.tableDeepCopy(remote().data)
             local position = require("json").decode(fields.annotationPosition); position.fixtureExtension = "keep"
             fields.annotationPosition = require("json").encode(position); server:insert(entry().key, fields)
             native.note = "New note"; sync:changed(); exchange()
@@ -227,7 +228,7 @@ for _, kind in ipairs({ "pdf", "epub" }) do
             assert.equals(1, #reader.annotation.annotations); assert.equals(0, server.writes)
         end)
         it("does not import a new desktop duplicate of an already mapped highlight", function()
-            enable(); exchange(); server:insert("ABCDEFGH", Helpers.copy(remote().data)); exchange()
+            enable(); exchange(); server:insert("ABCDEFGH", util.tableDeepCopy(remote().data)); exchange()
             assert.equals(1, #reader.annotation.annotations); assert.equals(1, server.writes)
             assert.equals(1, #record().warnings); assert.truthy(server.annotations.ABCDEFGH)
         end)

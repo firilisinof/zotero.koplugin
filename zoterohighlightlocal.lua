@@ -1,4 +1,5 @@
 local Helpers = require("zoterohighlightutil")
+local util = require("util")
 local Local = {}
 
 ---@param item table
@@ -72,7 +73,7 @@ end
 ---@param native table
 local function updateItem(reader, item, native)
     for _, field in ipairs({ "pos0", "pos1", "pboxes", "ext", "drawer", "color", "text", "note", "note_format" }) do
-        item[field] = native[field] ~= nil and Helpers.copy(native[field]) or nil
+        item[field] = native[field] ~= nil and util.tableDeepCopy(native[field]) or nil
     end
     item.page = reader.paging and item.pos0.page or item.pos0
     preparePDF(item)
@@ -107,7 +108,7 @@ function Local.apply(reader, before, after, runtime)
     local annotations, found = reader.annotation.annotations, updateExisting(reader, after)
     for id, entry in pairs(after) do
         if not found[id] and entry.native ~= false then
-            local item = Helpers.copy(entry.native)
+            local item = util.tableDeepCopy(entry.native)
             item.zotero_highlight_id, item.datetime = id, os.date("%Y-%m-%d %H:%M:%S")
             item.page = reader.paging and item.pos0.page or item.pos0
             preparePDF(item)

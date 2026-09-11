@@ -1,5 +1,5 @@
 local Base = require("spec.support.fake_progress_server")
-local Helpers = require("zoterohighlightutil")
+local util = require("util")
 local Server = {}
 Server.__index = Server
 setmetatable(Server, { __index = Base })
@@ -12,7 +12,7 @@ end
 
 function Server:insert(key, fields)
     self.version = self.version + 1
-    self.annotations[key] = { key = key, version = self.version, data = Helpers.copy(fields) }
+    self.annotations[key] = { key = key, version = self.version, data = util.tableDeepCopy(fields) }
     return self.annotations[key]
 end
 
@@ -49,7 +49,7 @@ function Server:dispatch(request)
     assert(request.method == "PATCH", "Unexpected highlight request " .. request.method .. " " .. request.url)
     local current = assert(self.annotations[key])
     if tonumber(request.headers["if-unmodified-since-version"]) ~= current.version then return 412 end
-    local fields = Helpers.copy(current.data)
+    local fields = util.tableDeepCopy(current.data)
     for field, value in pairs(request.payload) do fields[field] = value end
     self:insert(key, fields); self.writes = self.writes + 1
     if self.lose_write_response then return 0 end

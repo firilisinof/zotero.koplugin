@@ -1,4 +1,5 @@
 local UI = require("spec.support.fake_ui")
+local Util = require("zoteroutil")
 local Runtime = {}
 Runtime.__index = Runtime
 setmetatable(Runtime, { __index = UI })
@@ -23,7 +24,8 @@ end
 function Runtime:work()
     local job = table.remove(self.jobs, 1)
     assert(job, "No background job queued")
-    if not job.done then job.done = true; job.callback(job.task()) end
+    -- Results cross the same JSON pipe as zoteroprogressworker, so lossy encoding shows up here.
+    if not job.done then job.done = true; job.callback(Util.decode(Util.encode(job.task()))) end
 end
 function Runtime:advance(seconds)
     self.clock = self.clock + seconds

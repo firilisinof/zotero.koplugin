@@ -1,4 +1,5 @@
 local Helpers = require("zoterohighlightutil")
+local util = require("util")
 local Merge = {}
 
 --- Three-way field merge. Deletion versus editing and overlapping edits stay unresolved.
@@ -7,9 +8,9 @@ local Merge = {}
 ---@param remote table|boolean
 ---@return table|boolean|nil, string[]|nil
 function Merge.values(base, local_value, remote)
-    if Helpers.equal(local_value, remote) then return Helpers.copy(local_value) end
-    if Helpers.equal(local_value, base) then return Helpers.copy(remote) end
-    if Helpers.equal(remote, base) then return Helpers.copy(local_value) end
+    if Helpers.equal(local_value, remote) then return util.tableDeepCopy(local_value) end
+    if Helpers.equal(local_value, base) then return util.tableDeepCopy(remote) end
+    if Helpers.equal(remote, base) then return util.tableDeepCopy(local_value) end
     if base == false or local_value == false or remote == false then return nil, { "creation or deletion" } end
     local merged, conflicts = {}, {}
     for _, field in ipairs({ "text", "comment", "color", "kind", "position" }) do
@@ -18,7 +19,7 @@ function Merge.values(base, local_value, remote)
         elseif not Helpers.equal(remote[field], base[field]) and not Helpers.equal(remote[field], result) then
             conflicts[#conflicts + 1] = field
         end
-        merged[field] = Helpers.copy(result)
+        merged[field] = util.tableDeepCopy(result)
     end
     if #conflicts > 0 then return nil, conflicts end
     return merged
@@ -32,8 +33,8 @@ end
 function Merge.choose(entry, local_value, remote)
     local choice = entry.resolution
     if choice and Helpers.equal(choice.remote, remote) and Helpers.equal(choice.local_value, local_value) then
-        if choice.side == "local" then return Helpers.copy(local_value) end
-        return Helpers.copy(remote)
+        if choice.side == "local" then return util.tableDeepCopy(local_value) end
+        return util.tableDeepCopy(remote)
     end
     return Merge.values(entry.base, local_value, remote)
 end

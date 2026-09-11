@@ -2,7 +2,7 @@ require("commonrequire")
 package.path = "plugins/zotero.koplugin/?.lua;" .. package.path
 local Codec = require("zoterohighlightcodec")
 local PDF = require("zoteropdf")
-local Helpers = require("zoterohighlightutil")
+local Util = require("zoteroutil")
 local Range = require("zoterocfirange")
 local Fixtures = require("spec.support.fixtures")
 local Identity = require("zoteroprogressidentity")
@@ -27,10 +27,15 @@ describe("Zotero highlight geometry", function()
     end)
     it("round-trips consecutive-page PDF highlights after JSON persistence", function()
         local codec = Codec.open({ path = Fixtures.dir .. "positions/geometry.pdf", format = "application/pdf" })
-        local value = { text = "Two pages", comment = "", color = "#ffd400", kind = "highlight",
-            position = { pageIndex = 0, rects = { { 50, 500, 180, 514 } }, nextPageRects = { { 50, 470, 155, 484 } } } }
-        local native = Helpers.copy(codec:decode(value))
-        assert.same(value, codec:encode(native)); codec:close()
+        -- Pages 1 and 2 form a Lua sequence, pages 3 and 4 do not. Encoders treat them differently.
+        for _, page_index in ipairs({ 0, 2 }) do
+            local value = { text = "Two pages", comment = "", color = "#ffd400", kind = "highlight",
+                position = { pageIndex = page_index, rects = { { 50, 500, 180, 514 } }, nextPageRects = { { 50, 470, 155, 484 } } } }
+            -- Persist through the journal's real encoder: an in-memory copy would hide lost page keys.
+            local native = Util.decode(Util.encode(codec:decode(value)))
+            assert.same(value, codec:encode(native))
+        end
+        codec:close()
     end)
     it("rejects degenerate, nonfinite and malformed rectangles", function()
         for _, rect in ipairs({ {}, {1,2,0,3}, {1,2,1,4}, {0,0,math.huge,5} }) do

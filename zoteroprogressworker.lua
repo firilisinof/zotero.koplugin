@@ -1,7 +1,7 @@
 -- Non-modal counterpart of Trapper's subprocess boundary: only JSON crosses back.
 local ffiutil = require("ffi/util")
 local UIManager = require("ui/uimanager")
-local JSON = require("json")
+local Util = require("zoteroutil")
 local ffi = require("ffi")
 local Worker = {}
 
@@ -12,7 +12,7 @@ local Worker = {}
 function Worker.run(task, callback)
     local pid, pipe = ffiutil.runInSubProcess(function(_, output)
         local ok, result = pcall(task)
-        ffiutil.writeToFD(output, JSON.encode(ok and result or { error = "Position worker failed" }), true)
+        ffiutil.writeToFD(output, Util.encode(ok and result or { error = "Position worker failed" }), true)
     end, true)
     if not pid then callback({ error = "Could not start position worker" }); return function() end end
     local done, elapsed, chunks = false, 0, {}
@@ -43,7 +43,7 @@ function Worker.run(task, callback)
         if ffiutil.isSubProcessDone(pid) then
             table.insert(chunks, ffiutil.readAllFromFD(pipe))
             pipe = nil
-            local ok, result = pcall(JSON.decode, table.concat(chunks))
+            local ok, result = pcall(Util.decode, table.concat(chunks))
             finish(ok and result or { error = "Position worker returned no result" }, false)
             return
         end

@@ -1,12 +1,5 @@
-local JSON = require("json")
+local util = require("util")
 local Helpers = {}
-
---- Copy JSON-safe state at the process boundary. Example: Helpers.copy(record).
----@param value table|boolean|string|number
----@return table|boolean|string|number
-function Helpers.copy(value)
-    return JSON.decode(JSON.encode(value))
-end
 
 --- Compare nested values independent of JSON object ordering. Example: Helpers.equal(a, b).
 ---@param first unknown
@@ -31,14 +24,25 @@ function Helpers.key()
     return table.concat(key)
 end
 
+-- KOReader keys multi-page PDF parts by page number. rapidjson drops such sparse
+-- numeric keys, so journals key them by string and preparePDF restores numbers.
+---@param ext table<integer|string, table>
+---@return table<string, table>
+local function pagesByString(ext)
+    local pages = {}
+    for page, part in pairs(ext) do pages[tostring(page)] = util.tableDeepCopy(part) end
+    return pages
+end
+
 --- Snapshot only editable annotation fields, excluding layout and modification clocks.
 ---@param item table
 ---@return table
 function Helpers.native(item)
     local snapshot = {}
-    for _, field in ipairs({ "pos0", "pos1", "pboxes", "ext", "drawer", "color", "text", "note", "note_format" }) do
-        if item[field] ~= nil then snapshot[field] = Helpers.copy(item[field]) end
+    for _, field in ipairs({ "pos0", "pos1", "pboxes", "drawer", "color", "text", "note", "note_format" }) do
+        if item[field] ~= nil then snapshot[field] = util.tableDeepCopy(item[field]) end
     end
+    if item.ext ~= nil then snapshot.ext = pagesByString(item.ext) end
     return snapshot
 end
 

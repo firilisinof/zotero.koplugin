@@ -134,6 +134,11 @@ Attachment rows also carry `title`, `author`, `year`, `file_format` and `downloa
   change on the server or after an account reset. Older full caches are pruned on their next sync.
 - `syncAllItems` rewrites a cache only when an entry's version changed, it was deleted or it was
   pruned. An unchanged sync keeps `API.index` and still records the library version and `last_sync`.
+- JSON goes through `Util.encode`/`Util.decode`, backed by rapidjson. It silently drops sparse
+  numeric keys, so anything persisted or sent through the worker pipe must use string keys or
+  sequences. Highlight journals key PDF `ext` page parts by string for that reason. JSON null
+  decodes to the truthy `rapidjson.null`, as LuaJSON's null was truthy too. In-memory copies use
+  `util.tableDeepCopy`, which keeps the array or object kind of decoded tables.
 - An attachment whose `parentItem` is not in the library is hidden from collection
   browsing but still findable by search under its own title. This is odd, and specs
   pin it, so change it deliberately rather than by accident.

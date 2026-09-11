@@ -1,4 +1,5 @@
 local Runner = require("spec.support.fake_task_runner")
+local Worker = require("spec.support.fake_worker")
 local FakeUI = {}
 FakeUI.__index = FakeUI
 
@@ -18,7 +19,8 @@ end
 
 function FakeUI.new()
     local runtime = setmetatable({ shown = {}, closed = {}, scheduled = {}, online = true,
-        clock = 1000000, runner = Runner.new(), repaints = 0, wraps = 0 }, FakeUI)
+        clock = 1000000, runner = Runner.new(), worker = Worker.new(), repaints = 0, wraps = 0 }, FakeUI)
+    runtime.jobs = runtime.worker.jobs
     for _, kind in ipairs({ "InputDialog", "MultiInputDialog", "RadioButtonWidget", "ButtonDialog",
         "SpinWidget", "InfoMessage", "TextViewer" }) do
         runtime[kind] = widgetType(kind)
@@ -27,11 +29,30 @@ function FakeUI.new()
 end
 
 function FakeUI:show(widget) table.insert(self.shown, widget) end
-function FakeUI:close(widget) if widget then table.insert(self.closed, widget) end end
 function FakeUI:repaint() self.repaints = self.repaints + 1 end
 function FakeUI:schedule(callback) table.insert(self.scheduled, callback) end
 function FakeUI:wrap(callback) self.wraps = self.wraps + 1 return callback() end
 function FakeUI:run(task) return self.runner:run(task) end
+function FakeUI:background(task, callback, limit) return self.worker:run(task, callback, limit) end
+function FakeUI:work() self.worker:work() end
+
+-- InfoMessage calls its dismiss callback however it closes, tapped or closed by code.
+function FakeUI:close(widget)
+    if not widget then return end
+    table.insert(self.closed, widget)
+    local dismiss = widget.dismiss_callback
+    widget.dismiss_callback = nil
+    if dismiss then dismiss() end
+end
+
+function FakeUI:cancellable(text, on_cancel)
+    local widget = self:message(text)
+    widget.dismiss_callback = on_cancel
+    return widget
+end
+
+-- InfoMessage closes itself on tap.
+function FakeUI:tapClose(widget) self:close(widget) end
 function FakeUI:isOnline() return self.online end
 function FakeUI:now() return self.clock end
 function FakeUI:openReader(path, after_open)

@@ -48,6 +48,13 @@ function Util.write(path, contents, durable)
     return "Could not replace " .. path .. ": " .. tostring(rename_error)
 end
 
+--- Remove a file and any replacement Util.write left unfinished. Example: Util.discard(path).
+---@param path string
+function Util.discard(path)
+    os.remove(path .. ".tmp")
+    os.remove(path)
+end
+
 --- Test for a regular file. Example: Util.isFile(path).
 ---@param path string|nil
 ---@return boolean

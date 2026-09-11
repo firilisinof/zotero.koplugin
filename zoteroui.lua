@@ -95,12 +95,29 @@ function UI:refreshHighlights(reader)
     UIManager:setDirty(reader, "ui")
 end
 
---- Execute network work in a non-modal child. Example: UI:background(task, callback).
+--- Execute network work in a non-modal child. Example: UI:background(task, callback, 60).
 ---@param task function
 ---@param callback function
+---@param limit number|nil Seconds before the child is killed
 ---@return function
-function UI:background(task, callback)
-    return require("zoteroprogressworker").run(task, callback)
+function UI:background(task, callback, limit)
+    return require("zoteroprogressworker").run(task, callback, limit)
+end
+
+--- Show persistent progress that calls on_cancel once when tapped away or closed. Example: UI:cancellable(text, cancel).
+---@param text string
+---@param on_cancel function
+---@return table
+function UI:cancellable(text, on_cancel)
+    local widget = self:message(text)
+    -- InfoMessage calls this from inside UIManager:close. Mark it first so a
+    -- nested UI:close from on_cancel does not close the same widget twice.
+    widget.dismiss_callback = function()
+        widget.dismiss_callback = nil
+        widget.zotero_dismissed = true
+        on_cancel()
+    end
+    return widget
 end
 
 --- Inspect existing progress before ReaderUI initializes defaults. Example: UI:readProgress(path).

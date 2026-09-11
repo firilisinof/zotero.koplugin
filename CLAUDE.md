@@ -10,6 +10,7 @@ Fork of [stelzch/zotero.koplugin](https://github.com/stelzch/zotero.koplugin).
 | `main.lua` | KOReader plugin lifecycle, dispatcher actions and sync scheduling |
 | `zoteroapi.lua` | Public API facade and local cache I/O |
 | `zotero{settings,index,transport,download,sync}.lua` | Focused API behavior modules, injected with the facade |
+| `zoterosyncjob.lua` | Background library sync: operation lock, non-modal child, parent-only commit and staged-file cleanup |
 | `zotero{browser,row,dialogs,menu,ui}.lua` | Browser, metadata rows, configuration dialogs, menu and KOReader UI boundary |
 | `zoteroprogress*.lua` | Opt-in position lifecycle, durable outbox, identity, reader codecs, worker and settings client |
 | `zoterohighlight*.lua`, `zoteropdf.lua`, `zoterocfirange.lua` | Opt-in annotation lifecycle, merge journal, conditional item writes, reader import and range/rectangle conversion |
@@ -132,7 +133,13 @@ Attachment rows also carry `title`, `author`, `year`, `file_format` and `downloa
 - `items.json` keeps only the item fields listed in `CACHED_FIELDS` in `zoterosync.lua`, and never
   annotations. Reading a new item field means adding it there. Cached items gain it only when they
   change on the server or after an account reset. Older full caches are pruned on their next sync.
-- `syncAllItems` rewrites a cache only when an entry's version changed, it was deleted or it was
+- Library sync runs in `zoterosyncjob.lua` through the non-modal worker. The child's `stageLibrary`
+  writes `items.json.sync` and `collections.json.sync` and returns only versions and changed flags.
+  The parent's `commitLibrary` renames them into place after checking that the library prefix, API
+  key and Zotero directory are unchanged. Cancellation, failure, timeout, suspend and account changes
+  keep the live cache and remove the staged files. Resync fetches from version 0 without clearing
+  the cache first. `syncAllItems` runs the same two steps in-process for specs.
+- A sync stages a cache only when an entry's version changed, it was deleted or it was
   pruned. An unchanged sync keeps `API.index` and still records the library version and `last_sync`.
 - JSON goes through `Util.encode`/`Util.decode`, backed by rapidjson. It silently drops sparse
   numeric keys, so anything persisted or sent through the worker pipe must use string keys or
@@ -146,7 +153,7 @@ Attachment rows also carry `title`, `author`, `year`, `file_format` and `downloa
 - `API.downloadWebDAV` unpacks through KOReader's `ffi/archiver` (libarchive) rather
   than shelling out. It extracts the archive's first file entry to the filename
   Zotero recorded, so an entry spelled differently still lands where the UI looks.
-- `API.setItems` and `API.setCollections` atomically replace their JSON files and raise on write failure. Failed HTTP sync stages do not mutate the currently indexed item tables.
+- `API.setItems` and `API.setCollections` atomically replace their JSON files and raise on write failure. `API.adoptCache` renames a staged sync file into place and drops the parsed tables and index. Failed sync stages do not mutate the live caches or the currently indexed item tables.
 - If you ever shell out again, note that under LuaJIT `os.execute` returns the exit
   status as a **number** (0 on success, 256 on failure), not a boolean, and that a
   command which prompts will hang the reader. This is what `unzip` used to do.
@@ -167,7 +174,7 @@ Attachment rows also carry `title`, `author`, `year`, `file_format` and `downloa
 - `zoteroposition.lua` stores browser views, pages and back history in `browser_positions`, keyed by library prefix. Browser reopening reloads the latest snapshot because the file manager and reader have separate plugin instances. Empty caches after switching libraries defer destination validation until metadata returns.
 - Versions belong to individual attachments in `.zotero-<key>.version`. A legacy parent-level marker is accepted only for a single readable attachment. Transfers and archive extraction are staged before replacing the document.
 - Collection downloads use one dismissible subprocess per stale attachment. The subprocess may write files but never changes UI or settings. The parent reports progress and failures and refreshes file-presence indicators.
-- `last_sync` is recorded only after full sync success. `sync_on_startup` and `sync_on_open` default to false. Automatic sync needs an existing connection and never prompts to enable Wi-Fi. Browser-open sync uses a fixed 24-hour threshold.
+- `last_sync` is recorded only after full sync success. `sync_on_startup` and `sync_on_open` default to false. Automatic sync needs an existing connection, never prompts to enable Wi-Fi and shows no progress. Manual sync shows a tap-to-cancel message. Browser-open sync uses a fixed 24-hour threshold.
 - `tools/smoke-ui.lua` runs real widgets and downloads against fixtures in a temporary profile. It saves screenshots and checks cancellation and sidecar preservation. It must use a fresh temporary `KO_HOME`.
 
 ## Optional position writes

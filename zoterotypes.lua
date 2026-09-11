@@ -57,5 +57,6 @@
 ---@field storage_dir string
 ---@field index ZoteroIndex|nil
 ---@field operation string|nil
+---@field sync_job table|nil Background library sync shared by plugin instances
 
 return {}

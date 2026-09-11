@@ -1,12 +1,11 @@
 local UI = require("spec.support.fake_ui")
-local Util = require("zoteroutil")
 local Runtime = {}
 Runtime.__index = Runtime
 setmetatable(Runtime, { __index = UI })
 
 function Runtime.new()
     local self = UI.new()
-    self.jobs, self.timers = {}, {}
+    self.timers = {}
     return setmetatable(self, Runtime)
 end
 
@@ -14,19 +13,6 @@ function Runtime:readProgress() return self.existing end
 function Runtime:refreshHighlights(reader) reader.refreshed = (reader.refreshed or 0) + 1 end
 function Runtime:later(delay, task) self.timers[task] = self.clock + delay end
 function Runtime:unschedule(task) self.timers[task] = nil end
-function Runtime:background(task, callback)
-    local job = { task = task, callback = callback }
-    table.insert(self.jobs, job)
-    return function()
-        if not job.done then job.done = true; callback({ error = "Interrupted", delay = 0 }) end
-    end
-end
-function Runtime:work()
-    local job = table.remove(self.jobs, 1)
-    assert(job, "No background job queued")
-    -- Results cross the same JSON pipe as zoteroprogressworker, so lossy encoding shows up here.
-    if not job.done then job.done = true; job.callback(Util.decode(Util.encode(job.task()))) end
-end
 function Runtime:advance(seconds)
     self.clock = self.clock + seconds
     local due = {}

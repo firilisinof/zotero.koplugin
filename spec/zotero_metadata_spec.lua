@@ -10,8 +10,15 @@ describe("Zotero display metadata", function()
         api = env.api
     end)
 
+    -- Presence is filled in for the rows a view actually shows, never cached in the index.
+    local function presence(rows)
+        api.markDownloaded(rows)
+        return rows
+    end
+
     it("uses publication metadata and the attachment media type in both views", function()
-        for _, row in ipairs({ api.displayCollection("COLLAAA1")[3], api.displaySearchResults("attention")[1] }) do
+        for _, row in ipairs({ presence(api.displayCollection("COLLAAA1"))[3],
+            presence(api.displaySearchResults("attention"))[1] }) do
             assert.equals("Attention Is All You Need", row.title)
             assert.equals("Vaswani et al.", row.author)
             assert.equals("2017", row.year)
@@ -77,7 +84,7 @@ describe("Zotero display metadata", function()
         items.PARENT01.data.title = nil
         items.ATTACH01.data.title, items.ATTACH01.data.filename = nil, nil
         api.setItems(items)
-        local row = api.displaySearchResults("vaswani")[1]
+        local row = presence(api.displaySearchResults("vaswani"))[1]
         assert.is_nil(row.title)
         assert.is_false(row.downloaded)
     end)
@@ -121,10 +128,10 @@ describe("Zotero display metadata", function()
         local row = api.displaySearchResults("attention")[1]
         row.title, row.author = "edited", "edited"
         local path = env:file("ATTACH01")
-        assert.is_true(api.displaySearchResults("attention")[1].downloaded)
-        assert.is_true(api.displayCollection("COLLAAA1")[3].downloaded)
+        assert.is_true(presence(api.displaySearchResults("attention"))[1].downloaded)
+        assert.is_true(presence(api.displayCollection("COLLAAA1"))[3].downloaded)
         os.remove(path)
-        assert.is_false(api.displaySearchResults("attention")[1].downloaded)
+        assert.is_false(presence(api.displaySearchResults("attention"))[1].downloaded)
         assert.equals("Attention Is All You Need", api.displaySearchResults("attention")[1].title)
         assert.equals(cached, api.getIndex())
         assert.is_nil(cached.searchable[4].downloaded)

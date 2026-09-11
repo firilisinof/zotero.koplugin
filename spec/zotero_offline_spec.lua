@@ -95,6 +95,18 @@ describe("Zotero local reading", function()
         assert.equals(0, env.http:callCount())
     end)
 
+    it("lists local copies from one storage listing instead of a check per row", function()
+        env:file("ATTACH01")
+        env:file("ATTACH02")
+        local resolve = api.getLocalAttachmentPath
+        api.getLocalAttachmentPath = function() error("checked presence row by row") end
+        local ok, rows = pcall(api.displayOnDevice, "")
+        api.getLocalAttachmentPath = resolve
+        assert.is_true(ok, tostring(rows))
+        assert.equals(2, #rows)
+        assert.is_true(rows[1].downloaded)
+    end)
+
     it("lists current file presence without stale index flags or collection rows", function()
         env:attachment("ORPHAN", "MISSING", "orphan.pdf")
         local index = api.getIndex()

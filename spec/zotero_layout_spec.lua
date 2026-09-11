@@ -50,6 +50,22 @@ describe("Zotero native metadata layout", function()
         assert.equals(_("Downloaded"), browser.item_group[1].metadata_widgets.status.text)
     end)
 
+    it("checks file presence only for the rows on the visible page", function()
+        local paged = Browser:new{ api = env.api, runtime = runtime, title = "Zotero",
+            width = 600, height = 800, items_per_page = 2, is_enable_shortcut = false,
+            close_callback = function() end }
+        env:file("ATTACH01")
+        paged:displayCollection("COLLAAA1")
+        assert.equals(2, paged.perpage)
+        assert.is_nil(paged.item_table[1].downloaded)
+        assert.is_false(paged.item_table[2].downloaded)
+        assert.is_nil(paged.item_table[3].downloaded)
+        paged:onGotoPage(2)
+        assert.is_true(paged.item_table[3].downloaded)
+        assert.equals(_("Downloaded"), paged.item_group[1].metadata_widgets.status.text)
+        paged:free()
+    end)
+
     it("provides an untitled label without showing legacy nil or unknown metadata", function()
         browser:setItems({ { key = "MISSING", text = "Unknown - nil", file_format = "PDF" } }, "Empty")
         assert.equals(BD.auto(_("Untitled")), browser.item_group[1].metadata_widgets.title.text)

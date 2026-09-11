@@ -130,15 +130,29 @@ describe("Zotero library and browser features", function()
     end)
 
     describe("live download indicators", function()
+        -- Presence is filled in for the rows a view actually shows, never cached in the index.
+        local function presence(rows)
+            api.markDownloaded(rows)
+            return rows
+        end
+
         it("changes rows without rebuilding the metadata index", function()
             local index = api.getIndex()
-            assert.is_false(api.displayCollection("COLLAAA1")[3].downloaded)
+            assert.is_false(presence(api.displayCollection("COLLAAA1"))[3].downloaded)
             local path = env:file("ATTACH01")
-            assert.is_true(api.displayCollection("COLLAAA1")[3].downloaded)
-            assert.is_true(api.displaySearchResults("attention")[1].downloaded)
+            assert.is_true(presence(api.displayCollection("COLLAAA1"))[3].downloaded)
+            assert.is_true(presence(api.displaySearchResults("attention"))[1].downloaded)
             assert.equals(index, api.getIndex())
             os.remove(path)
-            assert.is_false(api.displaySearchResults("attention")[1].downloaded)
+            assert.is_false(presence(api.displaySearchResults("attention"))[1].downloaded)
+        end)
+
+        it("leaves presence unset until a view marks its rows", function()
+            env:file("ATTACH01")
+            assert.is_nil(api.displayCollection("COLLAAA1")[3].downloaded)
+            assert.is_nil(api.displaySearchResults("attention")[1].downloaded)
+            -- Collection rows are not attachments and never get a presence marker.
+            assert.is_nil(presence(api.displayCollection("COLLAAA1"))[1].downloaded)
         end)
 
         it("returns independent rows and leaves sort text undecorated", function()
@@ -151,7 +165,7 @@ describe("Zotero library and browser features", function()
 
         it("handles missing filenames and directory-shaped paths", function()
             api.getItems().ATTACH01.data.filename = nil
-            assert.is_false(api.displaySearchResults("attention")[1].downloaded)
+            assert.is_false(presence(api.displaySearchResults("attention"))[1].downloaded)
             assert.is_nil(api.getDirAndPath("ATTACH01"))
             api.getItems().ATTACH01.data.filename = "../escape.pdf"
             assert.is_nil(api.getDirAndPath("ATTACH01"))

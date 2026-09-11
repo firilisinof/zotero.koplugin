@@ -39,7 +39,9 @@ help:
 setup:
 	KOREADER_SRC="$(KOREADER_SRC)" ./tools/setup-dev.sh
 
-link: $(PLUGIN_LINK) $(SPEC_LINKS)
+# check-koreader comes first so a wrong KOREADER_SRC cannot be populated with
+# links before the check reports it. Make updates prerequisites in order.
+link: check-koreader $(PLUGIN_LINK) $(SPEC_LINKS)
 
 $(PLUGIN_LINK):
 	@mkdir -p $(dir $@)
@@ -55,10 +57,10 @@ unlink:
 build: check-koreader
 	cd $(KOREADER_SRC) && ./kodev build
 
-run: link check-koreader
+run: link
 	cd $(KOREADER_SRC) && ./kodev run
 
-test: link check-koreader
+test: link
 	sh ./tools/test.sh "$(KOREADER_SRC)" $(SPEC_NAMES)
 
 package:

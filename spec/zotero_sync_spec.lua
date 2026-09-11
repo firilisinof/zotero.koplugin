@@ -2,6 +2,8 @@
 require("commonrequire")
 package.path = "plugins/zotero.koplugin/?.lua;" .. package.path
 local Env = require("spec.support.zotero_env")
+local FakeHttp = require("spec.support.fake_http")
+local lfs = require("libs/libkoreader-lfs")
 
 describe("Zotero item cache sync", function()
     local env, api, fake
@@ -21,6 +23,22 @@ describe("Zotero item cache sync", function()
         local headers = { ["total-results"] = "0", ["last-modified-version"] = "1300" }
         fake:on("GET", "/items%?", { headers = headers, body = "[]" })
         fake:on("GET", "/collections%?", { headers = headers, body = "[]" })
+    end
+
+    -- Routes match in registration order, so a later sync needs a server of its own.
+    local function freshServer()
+        env.http = FakeHttp.new()
+        api.http, fake = env.http, env.http
+    end
+
+    -- Util.write replaces files by rename, so every rewrite gets a new inode.
+    local function cacheInode(name)
+        return lfs.attributes(api.zotero_dir .. "/" .. name .. ".json", "ino")
+    end
+
+    local function itemsDelta(body)
+        fake:on("GET", "/items%?", { headers = { ["total-results"] = "1", ["last-modified-version"] = "1301" }, body = body })
+        fake:on("GET", "/collections%?", { headers = { ["total-results"] = "0", ["last-modified-version"] = "1301" }, body = "[]" })
     end
 
     local function addAnnotation(key)
@@ -99,6 +117,62 @@ describe("Zotero item cache sync", function()
             assert.same(collection, reloaded.displayCollection("COLLAAA1"))
             assert.same(search, reloaded.displaySearchResults(""))
             assert.same(notes, reloaded.getItemNotes("ATTACH01"))
+        end)
+    end)
+
+    describe("unchanged deltas", function()
+        before_each(function()
+            env:fullSyncRoutes()
+            assert.is_nil(api.syncAllItems())
+            freshServer()
+        end)
+
+        it("keep both caches and the index but still record the sync", function()
+            local items, collections, index = cacheInode("items"), cacheInode("collections"), api.getIndex()
+            api.setLastSync(1)
+            emptyDeltaRoutes()
+
+            assert.is_nil(api.syncAllItems())
+
+            assert.equal(items, cacheInode("items"))
+            assert.equal(collections, cacheInode("collections"))
+            assert.is_true(rawequal(index, api.getIndex()))
+            assert.equal("1300", api.getLibraryVersion())
+            assert.is_true(api.getLastSync() > 1)
+        end)
+
+        it("ignore entries the server repeats at known versions", function()
+            local items, collections, index = cacheInode("items"), cacheInode("collections"), api.getIndex()
+            env:fullSyncRoutes()
+
+            assert.is_nil(api.syncAllItems())
+
+            assert.equal(items, cacheInode("items"))
+            assert.equal(collections, cacheInode("collections"))
+            assert.is_true(rawequal(index, api.getIndex()))
+        end)
+
+        it("still rewrite only the cache holding a new version", function()
+            local items, collections, index = cacheInode("items"), cacheInode("collections"), api.getIndex()
+            itemsDelta([==[[{"key":"PARENT01","version":1301,
+                "data":{"itemType":"journalArticle","title":"Renamed","collections":["COLLAAA1"]}}]]==])
+
+            assert.is_nil(api.syncAllItems())
+
+            assert.are_not.equal(items, cacheInode("items"))
+            assert.equal(collections, cacheInode("collections"))
+            assert.is_false(rawequal(index, api.getIndex()))
+            assert.equal("Renamed", reloadedAPI().getItems().PARENT01.data.title)
+        end)
+
+        it("still rewrite the items cache when a known item is deleted", function()
+            local items = cacheInode("items")
+            itemsDelta([==[[{"key":"NOTE0001","version":1301,"data":{"itemType":"note","deleted":1}}]]==])
+
+            assert.is_nil(api.syncAllItems())
+
+            assert.are_not.equal(items, cacheInode("items"))
+            assert.is_nil(reloadedAPI().getItems().NOTE0001)
         end)
     end)
 end)

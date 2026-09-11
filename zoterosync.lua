@@ -78,38 +78,60 @@ local COLLECTION_SOURCE = { endpoint = "collections", filter = "", compact = kee
 
 ---@param existing table<string, ZoteroItem>
 ---@param compact fun(entry: ZoteroItem): ZoteroItem|nil
----@return table<string, ZoteroItem>
+---@return table<string, ZoteroItem>, boolean pruned
 local function copyEntries(existing, compact)
-    local entries = {}
+    local entries, pruned = {}, false
     -- Caches written before trimming shrink on their next sync, without a full resync.
-    for key, entry in pairs(existing) do entries[key] = compact(entry) end
-    return entries
+    for key, entry in pairs(existing) do
+        entries[key] = compact(entry)
+        pruned = pruned or entries[key] ~= entry
+    end
+    return entries, pruned
+end
+
+-- Zotero bumps an object's version on every modification, so equal versions mean equal content.
+---@param current ZoteroItem|nil
+---@param incoming ZoteroItem|nil
+---@return boolean
+local function sameVersion(current, incoming)
+    if current == nil or incoming == nil then return current == incoming end
+    return current.version == incoming.version
 end
 
 ---@param entries table<string, ZoteroItem>
 ---@param page ZoteroItem[]
 ---@param compact fun(entry: ZoteroItem): ZoteroItem|nil
+---@return boolean changed
 local function mergePage(entries, page, compact)
+    local changed = false
     for _, item in ipairs(page) do
         -- The server has used both true and 1 for trashed items.
         local deleted = item.data and (item.data.deleted == true or item.data.deleted == 1)
-        entries[item.key] = not deleted and compact(item) or nil
+        local incoming = not deleted and compact(item) or nil
+        changed = changed or not sameVersion(entries[item.key], incoming)
+        entries[item.key] = incoming
     end
+    return changed
 end
+
+---@class ZoteroDelta
+---@field entries table<string, ZoteroItem>
+---@field changed boolean Whether entries differ from the cache they were copied from
+---@field version string|nil
 
 ---@param api ZoteroAPI
 ---@param source ZoteroDeltaSource
 ---@param existing table<string, ZoteroItem>
----@return table|nil, string|nil, string|nil
+---@return ZoteroDelta|nil, string|nil
 local function fetchDelta(api, source, existing)
-    local entries = copyEntries(existing, source.compact)
+    local entries, changed = copyEntries(existing, source.compact)
     local url = ("https://api.zotero.org/%s/%s?since=%s&includeTrashed=true%s")
         :format(api.getLibraryPrefix(), source.endpoint, api.getLibraryVersion(), source.filter)
     local version, err = api.fetchCollectionPaginated(url, api.getHeaders(api.getAPIKey()), function(page)
-        mergePage(entries, page, source.compact)
+        changed = mergePage(entries, page, source.compact) or changed
     end)
     if err then return nil, err end
-    return entries, nil, version
+    return { entries = entries, changed = changed, version = version }
 end
 
 --- Sync read-only deltas and stamp successful completion. Example: API.syncAllItems().
@@ -118,15 +140,16 @@ end
 function Sync.syncAllItems(api)
     local err = api.ensureKeyAndID()
     if err then return err end
-    local items, items_error, items_version = fetchDelta(api, ITEM_SOURCE, api.getItems())
+    local items, items_error = fetchDelta(api, ITEM_SOURCE, api.getItems())
     if items_error then return items_error end
-    local collections, collections_error, collections_version = fetchDelta(api, COLLECTION_SOURCE, api.getCollections())
+    local collections, collections_error = fetchDelta(api, COLLECTION_SOURCE, api.getCollections())
     if collections_error then return collections_error end
-    api.setItems(items)
-    api.setCollections(collections)
+    -- An unchanged cache would cost a full JSON encode and a rebuilt index for nothing.
+    if items.changed then api.setItems(items.entries) end
+    if collections.changed then api.setCollections(collections.entries) end
     -- Each fetch observes a potentially different version. The earlier one avoids
     -- skipping changes made between requests on the next sync.
-    api.setLibraryVersion(api.earlierVersion(items_version, collections_version))
+    api.setLibraryVersion(api.earlierVersion(items.version, collections.version))
     api.setLastSync(os.time())
     api.saveModifiedItems()
 end

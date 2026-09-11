@@ -12,34 +12,101 @@ function Sync.earlierVersion(api, first, second)
     return a <= b and first or second
 end
 
+-- Every item field any module reads. Creators, relations and server links stay
+-- out of items.json, which low-end readers parse whole on every start.
+local CACHED_FIELDS = {
+    meta = { creatorSummary = true, parsedDate = true },
+    data = { itemType = true, title = true, parentItem = true, collections = true, tags = true, DOI = true,
+        date = true, contentType = true, linkMode = true, filename = true, md5 = true, note = true, deleted = true },
+}
+
+---@param fields table|nil
+---@param allowed table<string, boolean>
+---@return boolean
+local function onlyAllowed(fields, allowed)
+    if type(fields) ~= "table" then return fields == nil end
+    for name in pairs(fields) do
+        if not allowed[name] then return false end
+    end
+    return true
+end
+
+---@param item ZoteroItem
+---@return boolean
+local function isCompact(item)
+    for name in pairs(item) do
+        if name ~= "key" and name ~= "version" and not CACHED_FIELDS[name] then return false end
+    end
+    return onlyAllowed(item.meta, CACHED_FIELDS.meta) and onlyAllowed(item.data, CACHED_FIELDS.data)
+end
+
+---@param fields table|nil
+---@param allowed table<string, boolean>
+---@return table|nil
+local function pickFields(fields, allowed)
+    if type(fields) ~= "table" then return nil end
+    local kept = {}
+    for name in pairs(allowed) do kept[name] = fields[name] end
+    return next(kept) and kept or nil
+end
+
+-- Highlight sync fetches annotations per attachment, so the library cache never needs them.
+---@param item ZoteroItem
+---@return ZoteroItem|nil
+local function compactItem(item)
+    if item.data and item.data.itemType == "annotation" then return nil end
+    if isCompact(item) then return item end
+    return { key = item.key, version = item.version,
+        meta = pickFields(item.meta, CACHED_FIELDS.meta), data = pickFields(item.data, CACHED_FIELDS.data) }
+end
+
+---@param entry ZoteroItem
+---@return ZoteroItem
+local function keepEntry(entry)
+    return entry
+end
+
+---@class ZoteroDeltaSource
+---@field endpoint string
+---@field filter string Extra query parameters appended to the delta URL
+---@field compact fun(entry: ZoteroItem): ZoteroItem|nil
+
+---@type ZoteroDeltaSource
+local ITEM_SOURCE = { endpoint = "items", filter = "&itemType=-annotation", compact = compactItem }
+---@type ZoteroDeltaSource
+local COLLECTION_SOURCE = { endpoint = "collections", filter = "", compact = keepEntry }
+
 ---@param existing table<string, ZoteroItem>
+---@param compact fun(entry: ZoteroItem): ZoteroItem|nil
 ---@return table<string, ZoteroItem>
-local function copyEntries(existing)
+local function copyEntries(existing, compact)
     local entries = {}
-    for key, item in pairs(existing) do entries[key] = item end
+    -- Caches written before trimming shrink on their next sync, without a full resync.
+    for key, entry in pairs(existing) do entries[key] = compact(entry) end
     return entries
 end
 
 ---@param entries table<string, ZoteroItem>
 ---@param page ZoteroItem[]
-local function mergePage(entries, page)
+---@param compact fun(entry: ZoteroItem): ZoteroItem|nil
+local function mergePage(entries, page, compact)
     for _, item in ipairs(page) do
         -- The server has used both true and 1 for trashed items.
         local deleted = item.data and (item.data.deleted == true or item.data.deleted == 1)
-        entries[item.key] = not deleted and item or nil
+        entries[item.key] = not deleted and compact(item) or nil
     end
 end
 
 ---@param api ZoteroAPI
----@param endpoint string
+---@param source ZoteroDeltaSource
 ---@param existing table<string, ZoteroItem>
 ---@return table|nil, string|nil, string|nil
-local function fetchDelta(api, endpoint, existing)
-    local entries = copyEntries(existing)
-    local url = ("https://api.zotero.org/%s/%s?since=%s&includeTrashed=true")
-        :format(api.getLibraryPrefix(), endpoint, api.getLibraryVersion())
+local function fetchDelta(api, source, existing)
+    local entries = copyEntries(existing, source.compact)
+    local url = ("https://api.zotero.org/%s/%s?since=%s&includeTrashed=true%s")
+        :format(api.getLibraryPrefix(), source.endpoint, api.getLibraryVersion(), source.filter)
     local version, err = api.fetchCollectionPaginated(url, api.getHeaders(api.getAPIKey()), function(page)
-        mergePage(entries, page)
+        mergePage(entries, page, source.compact)
     end)
     if err then return nil, err end
     return entries, nil, version
@@ -51,9 +118,9 @@ end
 function Sync.syncAllItems(api)
     local err = api.ensureKeyAndID()
     if err then return err end
-    local items, items_error, items_version = fetchDelta(api, "items", api.getItems())
+    local items, items_error, items_version = fetchDelta(api, ITEM_SOURCE, api.getItems())
     if items_error then return items_error end
-    local collections, collections_error, collections_version = fetchDelta(api, "collections", api.getCollections())
+    local collections, collections_error, collections_version = fetchDelta(api, COLLECTION_SOURCE, api.getCollections())
     if collections_error then return collections_error end
     api.setItems(items)
     api.setCollections(collections)

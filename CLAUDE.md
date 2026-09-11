@@ -129,6 +129,9 @@ Attachment rows also carry `title`, `author`, `year`, `file_format` and `downloa
 
 ## Behaviour worth knowing
 
+- `items.json` keeps only the item fields listed in `CACHED_FIELDS` in `zoterosync.lua`, and never
+  annotations. Reading a new item field means adding it there. Cached items gain it only when they
+  change on the server or after an account reset. Older full caches are pruned on their next sync.
 - An attachment whose `parentItem` is not in the library is hidden from collection
   browsing but still findable by search under its own title. This is odd, and specs
   pin it, so change it deliberately rather than by accident.

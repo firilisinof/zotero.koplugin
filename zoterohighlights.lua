@@ -179,7 +179,7 @@ function Highlights:accept(snapshot, result)
     self:checkpoint()
     local record = self.store:get(snapshot.identity)
     if result.entries and record.generation == snapshot.generation
-        and Identity.checksum(snapshot.identity.path, true) == snapshot.identity.md5 then
+        and Identity.checksum(snapshot.identity.path) == snapshot.identity.md5 then
         record.delivery = { before = record.entries, after = result.entries }
         record.warnings, record.pdf_matrices = result.warnings, result.pdf_matrices
         record.pending = result.error ~= nil
@@ -220,7 +220,7 @@ function Highlights:sync(manual, queued)
     if self.paused or self.runtime:now() < self.next_try then return end
     local snapshot = queued and self.store:get(queued) or self:snapshot()
     if not snapshot or snapshot.delivery or not self:authorized(snapshot.identity) then return end
-    if Identity.checksum(snapshot.identity.path, true) ~= snapshot.identity.md5 then
+    if Identity.checksum(snapshot.identity.path) ~= snapshot.identity.md5 then
         self.status = "Queued attachment changed; highlight sync paused"; return
     end
     if not self.api.beginOperation("highlights") then

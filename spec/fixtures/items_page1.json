@@ -1,0 +1,107 @@
+[
+    {
+        "key": "PARENT01",
+        "version": 1200,
+        "library": { "type": "user", "id": 4242, "name": "spec" },
+        "meta": { "creatorSummary": "Vaswani et al.", "parsedDate": "2017", "numChildren": 2 },
+        "data": {
+            "key": "PARENT01",
+            "version": 1200,
+            "itemType": "journalArticle",
+            "title": "Attention Is All You Need",
+            "creators": [
+                { "creatorType": "author", "firstName": "Ashish", "lastName": "Vaswani" }
+            ],
+            "publicationTitle": "Advances in Neural Information Processing Systems",
+            "date": "2017",
+            "DOI": "10.5555/3295222",
+            "collections": ["COLLAAA1"],
+            "tags": [],
+            "relations": {},
+            "dateAdded": "2024-01-05T10:00:00Z",
+            "dateModified": "2024-01-05T10:00:00Z"
+        }
+    },
+    {
+        "key": "ATTACH01",
+        "version": 1201,
+        "library": { "type": "user", "id": 4242, "name": "spec" },
+        "meta": {},
+        "data": {
+            "key": "ATTACH01",
+            "version": 1201,
+            "parentItem": "PARENT01",
+            "itemType": "attachment",
+            "linkMode": "imported_file",
+            "title": "Full Text PDF",
+            "contentType": "application/pdf",
+            "filename": "Vaswani et al. - 2017 - Attention Is All You Need.pdf",
+            "md5": "5d41402abc4b2a76b9719d911017c592",
+            "mtime": 1704448800000,
+            "tags": [],
+            "relations": {},
+            "dateAdded": "2024-01-05T10:00:00Z",
+            "dateModified": "2024-01-05T10:00:00Z"
+        }
+    },
+    {
+        "key": "SNAPSHT1",
+        "version": 1202,
+        "library": { "type": "user", "id": 4242, "name": "spec" },
+        "meta": {},
+        "data": {
+            "key": "SNAPSHT1",
+            "version": 1202,
+            "parentItem": "PARENT01",
+            "itemType": "attachment",
+            "linkMode": "imported_url",
+            "title": "Snapshot",
+            "contentType": "text/html",
+            "filename": "index.html",
+            "url": "https://example.org/paper",
+            "tags": [],
+            "relations": {},
+            "dateAdded": "2024-01-05T10:00:00Z",
+            "dateModified": "2024-01-05T10:00:00Z"
+        }
+    },
+    {
+        "key": "STANDAL1",
+        "version": 1203,
+        "library": { "type": "user", "id": 4242, "name": "spec" },
+        "meta": {},
+        "data": {
+            "key": "STANDAL1",
+            "version": 1203,
+            "itemType": "attachment",
+            "linkMode": "imported_file",
+            "title": "A Standalone Report",
+            "contentType": "application/pdf",
+            "filename": "standalone-report.pdf",
+            "md5": "098f6bcd4621d373cade4e832627b4f6",
+            "mtime": 1704448800000,
+            "collections": ["COLLAAA1"],
+            "tags": [],
+            "relations": {},
+            "dateAdded": "2024-01-05T10:00:00Z",
+            "dateModified": "2024-01-05T10:00:00Z"
+        }
+    },
+    {
+        "key": "NOTE0001",
+        "version": 1204,
+        "library": { "type": "user", "id": 4242, "name": "spec" },
+        "meta": {},
+        "data": {
+            "key": "NOTE0001",
+            "version": 1204,
+            "parentItem": "PARENT01",
+            "itemType": "note",
+            "note": "<p>Worth rereading.</p>",
+            "tags": [],
+            "relations": {},
+            "dateAdded": "2024-01-05T10:00:00Z",
+            "dateModified": "2024-01-05T10:00:00Z"
+        }
+    }
+]

@@ -1,0 +1,261 @@
+require("commonrequire")
+package.path = "plugins/zotero.koplugin/?.lua;" .. package.path
+local Env = require("spec.support.zotero_env")
+
+describe("Zotero library and browser features", function()
+    local env, api
+    before_each(function()
+        env = Env.new()
+        api = env.api
+        env:credentials()
+        env:library()
+    end)
+
+    describe("group accounts", function()
+        it("keeps legacy personal settings and storage paths", function()
+            assert.equals("user", api.getLibraryType())
+            assert.equals("users/4242", api.getLibraryPrefix())
+            assert.equals(env.root .. "/storage", api.storage_dir)
+            api.init(env.root)
+            assert.equals(env.root .. "/storage", api.storage_dir)
+        end)
+
+        it("routes group sync and file downloads through the same prefix", function()
+            assert.is_nil(api.setAccount("group", "99", "read-only-key"))
+            env:syncRoutes()
+            assert.is_nil(api.syncAllItems())
+            env.http:on("GET", "/groups/99/items/ATTACH01/file$", { body = "group PDF" })
+            assert.is_not_nil(api.downloadAndGetPath("ATTACH01"))
+            for _, url in ipairs(env.http:urls()) do assert.truthy(url:find("/groups/99/", 1, true)) end
+        end)
+
+        it("resets metadata and the last sync when the active library changes", function()
+            api.getIndex()
+            api.setLibraryVersion(23)
+            api.setLastSync(1000)
+            api.setAccount("group", "99", "key")
+            assert.same({}, api.getItems())
+            assert.same({}, api.getCollections())
+            assert.is_nil(api.index)
+            assert.equals(0, api.getLibraryVersion())
+            assert.equals(0, api.getLastSync())
+            api.init(env.root)
+            assert.equals(0, api.getLastSync())
+        end)
+
+        it("reconciles direct group ID setters and retains an inactive personal ID", function()
+            api.setAccount("group", "99", "key")
+            env:library()
+            api.setUserID("555")
+            assert.is_not_nil(api.getItems().ATTACH01)
+            api.setGroupID("100")
+            assert.same({}, api.getItems())
+            assert.equals("groups/100", api.getLibraryPrefix())
+            assert.equals("555", api.getUserID())
+            assert.truthy(api.setGroupID("../invalid"))
+            assert.equals("groups/100", api.getLibraryPrefix())
+        end)
+
+        it("does not reset when only the key changes", function()
+            api.setLibraryVersion(23)
+            api.setLastSync(1000)
+            api.setAccount("user", "4242", "replacement-key")
+            assert.is_not_nil(api.getItems().ATTACH01)
+            assert.equals(23, api.getLibraryVersion())
+            assert.equals(1000, api.getLastSync())
+        end)
+
+        it("preserves original files and sidecars across library changes", function()
+            local original = env:file("ATTACH01", "personal", 1201)
+            assert(api.util.mkdir(original .. ".sdr"))
+            api.util.write(original .. ".sdr/metadata.lua", "progress")
+            api.setAccount("group", "99", "key")
+            env:library()
+            local group = env:file("ATTACH01", "group", 1201)
+            assert.is_not_equal(original, group)
+            assert.equals("personal", api.util.read(original))
+            api.setAccount("user", "4242", "key")
+            env:library()
+            assert.equals(original, select(2, api.getDirAndPath("ATTACH01")))
+            assert.equals("progress", api.util.read(original .. ".sdr/metadata.lua"))
+            assert.is_true(api.isAttachmentCurrent("ATTACH01"))
+        end)
+
+        it("isolates a second personal account as well as groups", function()
+            local original = env:file("ATTACH01")
+            api.setAccount("user", "555", "key")
+            env:library()
+            assert.equals(env.root .. "/storage/users/555", api.storage_dir)
+            assert.is_false(api.isAttachmentCurrent("ATTACH01"))
+            assert.equals("cached", api.util.read(original))
+        end)
+
+        it("reconciles manually edited library settings on initialization", function()
+            api.getSettings():saveSetting("library_type", "group")
+            api.getSettings():saveSetting("group_id", "99")
+            api.saveModifiedItems()
+            api.init(env.root)
+            assert.same({}, api.getItems())
+            assert.equals("groups/99", api.getLibraryPrefix())
+        end)
+
+        it("rejects invalid fields before changing the account", function()
+            for _, identifier in ipairs({ "", "0", "-2", "abc12", "12x", "1/2" }) do
+                assert.truthy(api.setAccount("group", identifier, "key"))
+                assert.equals("users/4242", api.getLibraryPrefix())
+            end
+            assert.truthy(api.setAccount("invalid", "99", "key"))
+        end)
+
+        it("preserves WebDAV preferences but bypasses them for a group", function()
+            api.toggleWebDAVEnabled()
+            api.setWebDAVUrl("https://private.example/zotero")
+            api.setAccount("group", "99", "key")
+            env:library()
+            env.http:on("GET", "/groups/99/items/ATTACH01/file", { body = "group" })
+            assert.is_false(api.getWebDAVEnabled())
+            assert.is_not_nil(api.downloadAndGetPath("ATTACH01"))
+            assert.equals(1, env.http:callCount())
+            assert.truthy(api.checkWebDAV():find("Group libraries", 1, true))
+            api.setAccount("user", "4242", "key")
+            assert.is_true(api.getWebDAVEnabled())
+        end)
+
+        it("reports a denied group without claiming a successful sync", function()
+            api.setAccount("group", "99", "key")
+            env.http:on("GET", "/groups/99/items%?", { code = 403 })
+            assert.truthy(api.syncAllItems():find("403", 1, true))
+            assert.equals(0, api.getLastSync())
+        end)
+    end)
+
+    describe("live download indicators", function()
+        -- Presence is filled in for the rows a view actually shows, never cached in the index.
+        local function presence(rows)
+            api.markDownloaded(rows)
+            return rows
+        end
+
+        it("changes rows without rebuilding the metadata index", function()
+            local index = api.getIndex()
+            assert.is_false(presence(api.displayCollection("COLLAAA1"))[3].downloaded)
+            local path = env:file("ATTACH01")
+            assert.is_true(presence(api.displayCollection("COLLAAA1"))[3].downloaded)
+            assert.is_true(presence(api.displaySearchResults("attention"))[1].downloaded)
+            assert.equals(index, api.getIndex())
+            os.remove(path)
+            assert.is_false(presence(api.displaySearchResults("attention"))[1].downloaded)
+        end)
+
+        it("leaves presence unset until a view marks its rows", function()
+            env:file("ATTACH01")
+            assert.is_nil(api.displayCollection("COLLAAA1")[3].downloaded)
+            assert.is_nil(api.displaySearchResults("attention")[1].downloaded)
+            -- Collection rows are not attachments and never get a presence marker.
+            assert.is_nil(presence(api.displayCollection("COLLAAA1"))[1].downloaded)
+        end)
+
+        it("returns independent rows and leaves sort text undecorated", function()
+            env:file("ATTACH01")
+            local first = api.displayCollection("COLLAAA1")
+            first[3].text = "changed"
+            assert.equals("Vaswani et al. - Attention Is All You Need", api.displayCollection("COLLAAA1")[3].text)
+            assert.is_nil(api.getIndex().by_collection.COLLAAA1[2].downloaded)
+        end)
+
+        it("handles missing filenames and directory-shaped paths", function()
+            api.getItems().ATTACH01.data.filename = nil
+            assert.is_false(presence(api.displaySearchResults("attention"))[1].downloaded)
+            assert.is_nil(api.getDirAndPath("ATTACH01"))
+            api.getItems().ATTACH01.data.filename = "../escape.pdf"
+            assert.is_nil(api.getDirAndPath("ATTACH01"))
+            assert.truthy(select(2, api.downloadAndGetPath("ATTACH01")):find("expected a filename", 1, true))
+        end)
+    end)
+
+    describe("exact tag filtering", function()
+        before_each(function()
+            local items = api.getItems()
+            items.PARENT01.data.tags = { { tag = "Read" } }
+            items.ATTACH01.data.tags = { { tag = "attachment-only" } }
+            items.STANDAL1.data.tags = { { tag = "Read" } }
+            api.setItems(items)
+        end)
+
+        it("uses the parent's tags and standalone attachment tags", function()
+            api.setFilterTag("Read")
+            assert.equals(2, #api.displaySearchResults(""))
+            assert.equals(3, #api.displayCollection("COLLAAA1"))
+            api.setFilterTag("attachment-only")
+            assert.equals(0, #api.displaySearchResults(""))
+        end)
+
+        it("matches literal full tags including case", function()
+            for _, tag in ipairs({ "read", "Re", "Read " }) do
+                api.setFilterTag(tag)
+                assert.same({}, api.displaySearchResults(""))
+            end
+            api.getItems().PARENT01.data.tags = { { tag = "[read].*" } }
+            api.setFilterTag("[read].*")
+            assert.equals(1, #api.displaySearchResults(""))
+        end)
+
+        it("invalidates the index and clearing restores every item", function()
+            local original = api.getIndex()
+            api.setFilterTag("Read")
+            assert.is_nil(api.index)
+            assert.is_not_equal(original, api.getIndex())
+            api.setFilterTag("")
+            assert.equals(4, #api.displaySearchResults(""))
+            api.init(env.root)
+            assert.equals("", api.getFilterTag())
+        end)
+
+        it("keeps collection navigation while no attachments match", function()
+            api.setFilterTag("unknown")
+            assert.equals(2, #api.displayCollection(nil))
+            assert.is_true(api.displayCollection("COLLAAA1")[1].collection)
+            assert.equals(1, #api.displayCollection("COLLAAA1"))
+        end)
+
+        it("uses orphan tags in search while keeping orphans out of browsing", function()
+            local orphan = env:attachment("ORPHAN", "MISSING", "orphan.pdf")
+            orphan.data.tags = { { tag = "orphan" } }
+            api.setFilterTag("orphan")
+            assert.equals("ORPHAN", api.displaySearchResults("")[1].key)
+            assert.equals(1, #api.displayCollection("COLLAAA1"))
+        end)
+    end)
+
+    describe("cached notes", function()
+        it("returns parent notes as plain text with entities and paragraphs", function()
+            api.getItems().NOTE0001.data.note = "<p>A &amp; B</p><p>C<br>D</p>"
+            local notes = api.getItemNotes("ATTACH01")
+            assert.equals("NOTE0001", notes[1].key)
+            assert.truthy(notes[1].text:find("A & B", 1, true))
+            assert.truthy(notes[1].text:find("C\nD", 1, true))
+            assert.is_nil(notes[1].text:find("<p>", 1, true))
+            assert.equals(0, env.http:callCount())
+        end)
+
+        it("orders notes by key and excludes deleted notes and annotations", function()
+            local items = api.getItems()
+            items.A = { data = { itemType = "note", parentItem = "PARENT01", note = "first" } }
+            items.Z = { data = { itemType = "note", parentItem = "PARENT01", note = "gone", deleted = 1 } }
+            items.Y = { data = { itemType = "annotation", parentItem = "PARENT01", note = "highlight" } }
+            api.setItems(items)
+            local notes = api.getItemNotes("ATTACH01")
+            assert.equals(2, #notes)
+            assert.equals("A", notes[1].key)
+            items.Z.data.deleted = true
+            assert.equals(2, #api.getItemNotes("ATTACH01"))
+        end)
+
+        it("returns an empty list for standalone, missing and orphaned attachments", function()
+            assert.same({}, api.getItemNotes("STANDAL1"))
+            assert.same({}, api.getItemNotes("missing"))
+            env:attachment("ORPHAN", "MISSING", "orphan.pdf")
+            assert.same({}, api.getItemNotes("ORPHAN"))
+        end)
+    end)
+end)

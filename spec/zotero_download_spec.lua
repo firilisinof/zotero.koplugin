@@ -60,6 +60,18 @@ describe("Zotero API client", function()
             assert.is_equal("Error: unsupported link mode 'embedded_image'.", e)
         end)
 
+        it("downloads an attachment saved from a URL like an imported file", function()
+            local items = ZoteroAPI.getItems()
+            items.ATTACH01.data.linkMode = "imported_url"
+            ZoteroAPI.setItems(items)
+            fake:on("GET", "/items/ATTACH01/file", { body = "%PDF-1.4 pretend" })
+
+            local path, e = ZoteroAPI.downloadAndGetPath("ATTACH01")
+
+            assert.is_nil(e)
+            assert.is_equal("%PDF-1.4 pretend", Util.read(path))
+        end)
+
         it("downloads the file and records its version", function()
             fake:on("GET", "/items/ATTACH01/file", { body = "%PDF-1.4 pretend" })
 

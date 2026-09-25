@@ -98,7 +98,11 @@ local function attachmentError(api, key)
     if mode == "linked_file" then
         return "Error: this item is a linked attachment. Linked attachments are currently unsupported."
     end
-    if mode ~= "imported_file" then return "Error: unsupported link mode '" .. tostring(mode) .. "'." end
+    -- imported_url files are stored like imported_file ones; only how they were added differs.
+    -- Upstream stelzch/zotero.koplugin#38.
+    if mode ~= "imported_file" and mode ~= "imported_url" then
+        return "Error: unsupported link mode '" .. tostring(mode) .. "'."
+    end
     if not api.getDirAndPath(key) then
         return "Invalid filename '" .. tostring(item.data.filename) .. "' for " .. key .. ", expected a filename without directories"
     end

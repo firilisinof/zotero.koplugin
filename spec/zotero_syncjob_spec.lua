@@ -125,7 +125,7 @@ describe("Zotero background library sync", function()
         plugin:onZoteroSyncAction()
         local result = runtime.worker:next().task()
         assert.same({ cache_schema = 1, items = { changed = true, version = "1230" },
-            collections = { changed = false, version = "1240" } }, result)
+            collections = { changed = false, version = "1230" } }, result)
         assert.equals(settings, api.util.read(api.zotero_dir .. "/meta.lua"))
         assert.equals(1, #stagedFiles())
     end)

@@ -42,13 +42,21 @@ function Env:library()
     self.api.getSettings():saveSetting("cache_schema", 1)
 end
 
+function Env:deletedRoute(version, body)
+    self.http:on("GET", "/deleted%?", {
+        headers = { ["last-modified-version"] = version },
+        body = body or '{"items":[],"collections":[]}',
+    })
+end
+
 function Env:syncRoutes()
+    self:deletedRoute("1230")
     self.http:on("GET", "/items%?", {
         headers = { ["total-results"] = "1", ["last-modified-version"] = "1230" },
         body = Fixtures.raw("items_page1.json"),
     })
     self.http:on("GET", "/collections%?", {
-        headers = { ["total-results"] = "3", ["last-modified-version"] = "1240" },
+        headers = { ["total-results"] = "3", ["last-modified-version"] = "1230" },
         body = Fixtures.raw("collections.json"),
     })
 end
@@ -76,6 +84,7 @@ function Env:attachment(key, parent, filename, version)
 end
 
 function Env:fullSyncRoutes()
+    self:deletedRoute("1214")
     self.http:on("GET", "/items%?.*start=0$", {
         headers = { ["total-results"] = "150", ["last-modified-version"] = "1214" },
         body = Fixtures.raw("items_page1.json"),
@@ -85,7 +94,7 @@ function Env:fullSyncRoutes()
         body = Fixtures.raw("items_page2.json"),
     })
     self.http:on("GET", "/collections%?.*start=0$", {
-        headers = { ["total-results"] = "3", ["last-modified-version"] = "1240" },
+        headers = { ["total-results"] = "3", ["last-modified-version"] = "1214" },
         body = Fixtures.raw("collections.json"),
     })
 end

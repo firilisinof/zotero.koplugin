@@ -20,6 +20,7 @@ describe("Zotero item cache sync", function()
     end
 
     local function emptyDeltaRoutes()
+        env:deletedRoute("1300")
         local headers = { ["total-results"] = "0", ["last-modified-version"] = "1300" }
         fake:on("GET", "/items%?", { headers = headers, body = "[]" })
         fake:on("GET", "/collections%?", { headers = headers, body = "[]" })
@@ -37,6 +38,7 @@ describe("Zotero item cache sync", function()
     end
 
     local function itemsDelta(body)
+        env:deletedRoute("1301")
         fake:on("GET", "/items%?", { headers = { ["total-results"] = "1", ["last-modified-version"] = "1301" }, body = body })
         fake:on("GET", "/collections%?", { headers = { ["total-results"] = "0", ["last-modified-version"] = "1301" }, body = "[]" })
     end
@@ -89,11 +91,12 @@ describe("Zotero item cache sync", function()
         end)
 
         it("never stores an annotation the server returns", function()
-            fake:on("GET", "/items%?", { headers = { ["total-results"] = "1" }, body = [==[
+            env:deletedRoute("1214")
+            fake:on("GET", "/items%?", { headers = { ["total-results"] = "1", ["last-modified-version"] = "1214" }, body = [==[
                 [{"key":"ANNOT001","version":1210,
                   "data":{"key":"ANNOT001","itemType":"annotation","parentItem":"ATTACH01"}}]
             ]==] })
-            fake:on("GET", "/collections%?", { headers = { ["total-results"] = "0" }, body = "[]" })
+            fake:on("GET", "/collections%?", { headers = { ["total-results"] = "0", ["last-modified-version"] = "1214" }, body = "[]" })
 
             assert.is_nil(api.syncAllItems())
 

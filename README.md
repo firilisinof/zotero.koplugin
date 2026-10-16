@@ -6,13 +6,6 @@
 
 [Install](#install) | [Features](#features) | [Configuration](#configuration) | [Development](#development)
 
-<br>
-
-<img src="docs/screenshots/home.png" width="23%" alt="Zotero home with Continue reading, Collections, All items, On device and Search">&nbsp;
-<img src="docs/screenshots/collection.png" width="23%" alt="A collection listing papers with author, year, format and download status">&nbsp;
-<img src="docs/screenshots/search.png" width="23%" alt="Search results for the word learning">&nbsp;
-<img src="docs/screenshots/notes.png" width="23%" alt="Zotero notes for a paper, shown offline">
-
 </div>
 
 ## Features
@@ -52,8 +45,8 @@ Everything is under **Zotero → Settings**.
 | Filter by tag | Show only items with one exact tag |
 | Sort items | Alphabetical, newest first or oldest first |
 | Sync on startup / on browse | Automatic sync when already online. Off by default |
-| Sync highlights | Two-way annotation sync. Needs write access. See [highlight sync](docs/highlight-sync.md) |
-| Share reading position | Shares the PDF page or EPUB location with Zotero. See [position sharing](docs/position-sharing.md) |
+| Sync highlights | Two-way annotation sync. Needs write access. |
+| Share reading position | Shares the PDF page or EPUB location with Zotero |
 
 **Tips:** hold a collection to download all of it, and hold a paper to read its notes.
 
@@ -86,7 +79,7 @@ make test    # offline integration suite
 make check   # unit tests, syntax and package checks (what CI runs)
 ```
 
-See [CLAUDE.md](CLAUDE.md) for architecture and test conventions, and [the roadmap](docs/roadmap.md) for what is implemented. The screenshots above come from `tools/readme-screenshots.lua`.
+See [CLAUDE.md](CLAUDE.md) for architecture and test conventions.
 
 ## Credits
 

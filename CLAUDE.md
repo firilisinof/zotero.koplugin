@@ -21,7 +21,6 @@ Fork of [stelzch/zotero.koplugin](https://github.com/stelzch/zotero.koplugin).
 | `spec/*_spec.lua` | Offline integration specs, run inside a real KOReader build |
 | `.github/workflows/ci.yml` | Syntax, unit and package checks on pushes and pull requests |
 | `tools/` | Development scripts, not shipped to the device |
-| `docs/roadmap.md` | Implemented capabilities and links to format support boundaries |
 
 ## Development loop
 
@@ -139,7 +138,9 @@ Attachment rows also carry `title`, `author`, `year`, `file_format` and `downloa
   writes `items.json.sync` and `collections.json.sync` and returns only versions and changed flags.
   The parent's `commitLibrary` renames them into place after checking that the library prefix, API
   key and Zotero directory are unchanged. Cancellation, failure, timeout, suspend and account changes
-  keep the live cache and remove the staged files. Resync fetches from version 0 without clearing
+  keep the live cache and remove the staged files. Each sync includes the permanent-deletion
+  feed. All pages and endpoints must share one library version; a racing change restarts
+  the staged fetch from the saved cursor, up to three attempts. Resync fetches from version 0 without clearing
   the cache first. `syncAllItems` runs the same two steps in-process for specs.
 - A sync whose `items.json` or `collections.json` is missing runs as a rebuild from version 0 and
   writes both caches, even empty ones. A `meta.lua` restored without its caches keeps an old
@@ -193,7 +194,7 @@ Reading-position sharing is off by default. Its only production write is a condi
 
 `src/zoteroprogressstore.lua` decodes each outbox once per Store and writes through, because only the parent writes it and both coordinators are shared through `api.progress` and `api.highlights`. `get`, `load` and `put` copy records the way the old JSON round trip did: two fields holding one table become separate tables, so capturing a local edit into `entries` cannot rewrite the `delivery.before` import baseline. An unchanged record writes nothing, and a failed write rolls the cache back to what the disk holds. Corruption written behind the cache is only noticed by the next restarted coordinator.
 
-`make test` runs against the existing compiled emulator without triggering a native rebuild. `tools/check-position-oracle.py` independently executes real crengine and CFI/sanitizer code extracted from installed Zotero 10.0.1. `tools/smoke-progress.lua` exercises actual ReaderUI lifecycle with offline fixtures and a fresh `/tmp` KO_HOME. Live checks are separate and explicitly use only dedicated attachments; see `docs/position-sharing.md`.
+`make test` runs against the existing compiled emulator without triggering a native rebuild. `tools/check-position-oracle.py` independently executes real crengine and CFI/sanitizer code extracted from installed Zotero 10.0.1. `tools/smoke-progress.lua` exercises actual ReaderUI lifecycle with offline fixtures and a fresh `/tmp` KO_HOME. Live checks are separate and explicitly use only dedicated attachments.
 
 ## Optional highlight writes
 
@@ -205,8 +206,7 @@ checksum, transport, operation lock and background worker infrastructure remain
 the same as position sharing. EPUB ranges reuse the existing point resolver.
 PDF transforms are calibrated through supported MuPDF APIs in a disposable
 scratch document, never by writing the source PDF. The reader-instance geometry
-hook preserves imported rectangles and is removed on close. See
-`docs/highlight-sync.md` for tests, live tools and support limits.
+hook preserves imported rectangles and is removed on close.
 
 ## Continuous integration
 

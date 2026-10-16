@@ -108,7 +108,9 @@ local function collectionPage(api, url, headers, start)
     if err then return nil, err end
     local total = tonumber(response["total-results"])
     if not total or total < 0 then return nil, "Error: could not determine number of items in library" end
-    return entries, nil, total, response["last-modified-version"]
+    local version = response["last-modified-version"]
+    if not tonumber(version) then return nil, "Error: missing or invalid Last-Modified-Version" end
+    return entries, nil, total, version
 end
 
 --- Fetch every page, optionally consuming each page. Example: API.fetchCollectionPaginated(url, headers).
@@ -116,12 +118,15 @@ end
 ---@param url string
 ---@param headers table<string, string>
 ---@param callback fun(entries: ZoteroItem[])|nil
----@return table|string|nil, string|nil
+---@return table|string|nil, string|nil, boolean|nil retry
 function Transport.fetchCollectionPaginated(api, url, headers, callback)
     local items, start, total, version = {}, 0, 0, nil
     repeat
         local entries, err, count, page_version = collectionPage(api, url, headers, start)
         if err then return nil, err end
+        if version and version ~= page_version then
+            return nil, "Library changed during sync; please retry", true
+        end
         total, version = count, page_version
         if callback then
             callback(entries)

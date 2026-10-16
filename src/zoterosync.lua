@@ -77,7 +77,7 @@ end
 ---@field compact fun(entry: ZoteroItem): ZoteroItem|nil
 ---@field cached fun(api: ZoteroAPI): table<string, ZoteroItem>
 
--- Items come first. Their version is the earlier one when both fetches race a change.
+-- Items come first; all pages, collections and deletions must share one version.
 ---@type ZoteroDeltaSource[]
 local SOURCES = {
     { endpoint = "items", filter = "&itemType=-annotation", compact = compactItem,
@@ -133,16 +133,16 @@ end
 ---@param source ZoteroDeltaSource
 ---@param since string|number
 ---@param rebuild boolean Start from an empty cache, so entries the server no longer lists disappear
----@return ZoteroDelta|nil, string|nil
+---@return ZoteroDelta|nil, string|nil, boolean|nil retry
 local function fetchDelta(api, source, since, rebuild)
     local entries, changed = copyEntries(rebuild and {} or source.cached(api), source.compact)
     changed = changed or rebuild
     local url = ("https://api.zotero.org/%s/%s?since=%s&includeTrashed=true%s")
         :format(api.getLibraryPrefix(), source.endpoint, since, source.filter)
-    local version, err = api.fetchCollectionPaginated(url, api.getHeaders(api.getAPIKey()), function(page)
+    local version, err, retry = api.fetchCollectionPaginated(url, api.getHeaders(api.getAPIKey()), function(page)
         changed = mergePage(entries, page, source.compact) or changed
     end)
-    if err then return nil, err end
+    if err then return nil, err, retry end
     return { entries = entries, changed = changed, version = version }
 end
 
@@ -161,10 +161,10 @@ end
 ---@param since string|number
 ---@param rebuild boolean
 ---@param path string
----@return ZoteroStagedCache|nil, string|nil
+---@return ZoteroStagedCache|nil, string|nil, boolean|nil retry
 local function stageDelta(api, source, since, rebuild, path)
-    local delta, err = fetchDelta(api, source, since, rebuild)
-    if err then return nil, err end
+    local delta, err, retry = fetchDelta(api, source, since, rebuild)
+    if err then return nil, err, retry end
     -- An unchanged cache would cost a full JSON encode and a rebuilt index for nothing.
     err = delta.changed and api.util.write(path, api.util.encode(delta.entries)) or nil
     if err then return nil, err end
@@ -199,8 +199,77 @@ local function missingCache(api)
     return false
 end
 
+-- Deletions are a separate feed: includeTrashed only reports items still in Trash.
+---@param api ZoteroAPI
+---@param since string|number
+---@return table|nil, string|nil
+local function fetchDeleted(api, since)
+    local url = ("https://api.zotero.org/%s/deleted?since=%s"):format(api.getLibraryPrefix(), since)
+    local response = api.requestJSON(url, api.getAPIKey())
+    if response.code ~= 200 then return nil, response.error or ("Deletion fetch failed: HTTP " .. response.code) end
+    local body = response.body
+    for _, name in ipairs({ "items", "collections" }) do
+        if type(body) ~= "table" or type(body[name]) ~= "table" then
+            return nil, "Invalid deletion response: expected items and collections arrays"
+        end
+        for index, key in pairs(body[name]) do
+            if type(index) ~= "number" or index < 1 or index % 1 ~= 0 or type(key) ~= "string" then
+                return nil, "Invalid deletion response: expected arrays of string keys"
+            end
+        end
+    end
+    local version = response.headers["last-modified-version"]
+    if not tonumber(version) then return nil, "Error: missing or invalid Last-Modified-Version" end
+    return { entries = body, version = version }
+end
+
+---@param api ZoteroAPI
+---@param source ZoteroDeltaSource
+---@param staged ZoteroStagedCache
+---@param path string
+---@param keys string[]
+---@return string|nil
+local function stageDeletions(api, source, staged, path, keys)
+    if next(keys) == nil then return end
+    local entries = staged.changed and api.util.decode(api.util.read(path)) or copyEntries(source.cached(api), keepEntry)
+    local changed = false
+    for _, key in pairs(keys) do
+        changed = changed or entries[key] ~= nil
+        entries[key] = nil
+    end
+    if not changed then return end
+    local err = api.util.write(path, api.util.encode(entries))
+    if not err then staged.changed = true end
+    return err
+end
+
+---@param api ZoteroAPI
+---@param rebuild boolean
+---@param since string|number
+---@param stage table<string, string>
+---@return ZoteroSyncResult, boolean|nil
+local function stageAttempt(api, rebuild, since, stage)
+    local result, version = { cache_schema = CACHE_SCHEMA }, nil
+    for _, source in ipairs(SOURCES) do
+        local staged, err, retry = stageDelta(api, source, since, rebuild, stage[source.endpoint])
+        if err then return { error = err }, retry end
+        if version and staged.version ~= version then return { error = "Library changed during sync; please retry" }, true end
+        result[source.endpoint], version = staged, staged.version
+    end
+    local deleted, err = fetchDeleted(api, since)
+    if err then return { error = err } end
+    if deleted.version ~= version then return { error = "Library changed during sync; please retry" }, true end
+    for _, source in ipairs(SOURCES) do
+        err = stageDeletions(api, source, result[source.endpoint], stage[source.endpoint], deleted.entries[source.endpoint])
+        if err then return { error = err } end
+    end
+    return result
+end
+
 --- Fetch deltas into staged files, leaving live caches and settings untouched. Runs in the
---- sync child, so only the small result crosses the pipe. Example: API.stageLibrary(false, stage).
+--- sync child, so only the small result crosses the pipe. Bounded retries require a
+--- consistent snapshot and never advance the saved cursor.
+--- Example: API.stageLibrary(false, API.getSyncStage()).
 ---@param api ZoteroAPI
 ---@param rebuild boolean Fetch from version 0 instead of patching the current cache
 ---@param stage table<string, string>
@@ -209,11 +278,13 @@ function Sync.stageLibrary(api, rebuild, stage)
     local err = api.ensureKeyAndID()
     if err then return { error = err } end
     rebuild = rebuild or missingCache(api) or api.getSettings():readSetting("cache_schema") ~= CACHE_SCHEMA
-    local since, result = rebuild and 0 or api.getLibraryVersion(), { cache_schema = CACHE_SCHEMA }
-    for _, source in ipairs(SOURCES) do
-        local staged, stage_error = stageDelta(api, source, since, rebuild, stage[source.endpoint])
-        if stage_error then return { error = stage_error } end
-        result[source.endpoint] = staged
+    local since, result = rebuild and 0 or api.getLibraryVersion(), nil
+    for attempt = 1, 3 do
+        local retry
+        result, retry = stageAttempt(api, rebuild, since, stage)
+        if not result.error then return result end
+        api.discardSyncStage(stage)
+        if not retry then return result end
     end
     return result
 end

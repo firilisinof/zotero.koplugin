@@ -139,7 +139,7 @@ describe("Zotero API client", function()
         local socketutil = require("socketutil")
 
         it("restores the default timeout after a request", function()
-            fake:on("GET", "/items", { headers = { ["total-results"] = "0" }, body = "[]" })
+            fake:on("GET", "/items", { headers = { ["total-results"] = "0", ["last-modified-version"] = "1214" }, body = "[]" })
 
             ZoteroAPI.fetchCollectionPaginated("https://api.zotero.org/users/4242/items?since=0", {})
 
@@ -177,7 +177,7 @@ describe("Zotero API client", function()
 
         it("returns every entry when given no callback", function()
             fake:on("GET", "/items%?", {
-                headers = { ["total-results"] = "5" },
+                headers = { ["total-results"] = "5", ["last-modified-version"] = "1214" },
                 body = Fixtures.raw("items_page1.json"),
             })
 
@@ -190,11 +190,11 @@ describe("Zotero API client", function()
 
         it("requests one page per hundred entries", function()
             fake:on("GET", "/items%?.*start=0$", {
-                headers = { ["total-results"] = "150" },
+                headers = { ["total-results"] = "150", ["last-modified-version"] = "1214" },
                 body = Fixtures.raw("items_page1.json"),
             })
             fake:on("GET", "/items%?.*start=100$", {
-                headers = { ["total-results"] = "150" },
+                headers = { ["total-results"] = "150", ["last-modified-version"] = "1214" },
                 body = Fixtures.raw("items_page2.json"),
             })
 
@@ -207,7 +207,7 @@ describe("Zotero API client", function()
 
         it("does not ask for a page past the end of an exact multiple", function()
             fake:on("GET", "/items%?", {
-                headers = { ["total-results"] = "100" },
+                headers = { ["total-results"] = "100", ["last-modified-version"] = "1214" },
                 body = Fixtures.raw("items_page1.json"),
             })
 
@@ -217,7 +217,7 @@ describe("Zotero API client", function()
         end)
 
         it("reads the collection size from the page itself", function()
-            fake:on("GET", "/items%?", { headers = { ["total-results"] = "0" }, body = "[]" })
+            fake:on("GET", "/items%?", { headers = { ["total-results"] = "0", ["last-modified-version"] = "1214" }, body = "[]" })
 
             local items, e = ZoteroAPI.fetchCollectionPaginated(URL, {})
 
@@ -247,7 +247,7 @@ describe("Zotero API client", function()
 
         it("reports malformed JSON", function()
             fake:on("GET", "/items%?", {
-                headers = { ["total-results"] = "1" },
+                headers = { ["total-results"] = "1", ["last-modified-version"] = "1214" },
                 body = "<html>gateway timeout</html>",
             })
 
@@ -316,15 +316,16 @@ describe("Zotero API client", function()
         end)
 
         it("drops items whose deleted flag is a boolean rather than 1", function()
+            env:deletedRoute("1214")
             env:credentials(USER_ID, API_KEY)
             fake:on("GET", "/items%?", {
-                headers = { ["total-results"] = "1" },
+                headers = { ["total-results"] = "1", ["last-modified-version"] = "1214" },
                 body = [==[
                     [{"key":"GONE0001","version":9,
                       "data":{"key":"GONE0001","version":9,"itemType":"note","deleted":true}}]
                 ]==],
             })
-            fake:on("GET", "/collections%?", { headers = { ["total-results"] = "0" }, body = "[]" })
+            fake:on("GET", "/collections%?", { headers = { ["total-results"] = "0", ["last-modified-version"] = "1214" }, body = "[]" })
 
             assert.is_nil(ZoteroAPI.syncAllItems())
 
@@ -332,20 +333,18 @@ describe("Zotero API client", function()
         end)
 
         it("keeps items that were synced earlier", function()
+            env:deletedRoute("1214")
             env:credentials(USER_ID, API_KEY)
             env:library()
-            fake:on("GET", "/items%?", { headers = { ["total-results"] = "0" }, body = "[]" })
-            fake:on("GET", "/collections%?", { headers = { ["total-results"] = "0" }, body = "[]" })
+            fake:on("GET", "/items%?", { headers = { ["total-results"] = "0", ["last-modified-version"] = "1214" }, body = "[]" })
+            fake:on("GET", "/collections%?", { headers = { ["total-results"] = "0", ["last-modified-version"] = "1214" }, body = "[]" })
 
             assert.is_nil(ZoteroAPI.syncAllItems())
 
             assert.is_not_nil(ZoteroAPI.getItems()["PARENT01"])
         end)
 
-        it("records the earlier of the two reported library versions", function()
-            -- The items fetch reports 1214 and the collections fetch 1240.
-            -- Storing 1240 would make the next sync ask for changes since then
-            -- and permanently miss anything modified in between.
+        it("records the consistent library version", function()
             env:credentials(USER_ID, API_KEY)
             env:fullSyncRoutes()
 

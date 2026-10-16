@@ -43,6 +43,14 @@ function FakeHttp:on(method, pattern, response)
     return self
 end
 
+-- Script changing server responses; the final response repeats until the test ends.
+function FakeHttp:onSequence(method, pattern, responses)
+    self:on(method, pattern)
+    local route = self.routes[#self.routes]
+    route.sequence, route.index = responses, 0
+    return self
+end
+
 function FakeHttp:_match(method, url)
     for _, route in ipairs(self.routes) do
         if route.method == method and string.find(url, route.pattern) ~= nil then
@@ -72,6 +80,10 @@ function FakeHttp:_handle(reqt)
     end
 
     local response = route.response
+    if route.sequence then
+        route.index = math.min(route.index + 1, #route.sequence)
+        response = route.sequence[route.index]
+    end
 
     if response.error ~= nil then
         -- LuaSocket signals transport failures as (nil, message).

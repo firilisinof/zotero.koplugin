@@ -17,18 +17,18 @@
 
 ## Features
 
-| | Feature | |
-| :-: | --- | --- |
-| 📚 | **Browse your library** | Collections, subcollections, All items and personal or group libraries |
-| 🔎 | **Search** | Titles, first authors and DOIs, with an optional tag filter |
-| ⬇️ | **Download on demand** | One tap per paper, or a whole collection at once. Zotero storage or WebDAV |
-| ✈️ | **Read offline** | Downloaded files open without Wi-Fi or credentials. *On device* lists them |
-| ⏯️ | **Continue reading** | Jump back into the last document, and return to where you were in the library |
-| 📝 | **Zotero notes** | Read a paper's notes from the last sync, offline |
-| 🖍️ | **Highlight sync** | Two-way PDF and EPUB highlights, with offline edits and conflict review *(opt-in)* |
-| 📍 | **Reading position** | Pick up on Zotero desktop at the page you left on your e-reader *(opt-in)* |
-| 🔄 | **Background sync** | Never blocks reading. Optional sync on startup or when the cache is a day old |
-| ↕️ | **Sorting** | Alphabetical, or by date added |
+| Feature | Description |
+| --- | --- |
+| **Browse your library** | Collections, subcollections, All items and personal or group libraries |
+| **Search** | Titles, first authors and DOIs, with an optional tag filter |
+| **Download on demand** | One tap per paper, or a whole collection at once. Zotero storage or WebDAV |
+| **Read offline** | Downloaded files open without Wi-Fi or credentials. *On device* lists them |
+| **Continue reading** | Jump back into the last document, and return to where you were in the library |
+| **Zotero notes** | Read a paper's notes from the last sync, offline |
+| **Highlight sync** | Two-way PDF and EPUB highlights, with offline edits and conflict review *(opt-in)* |
+| **Reading position** | Pick up on Zotero desktop at the page you left on your e-reader *(opt-in)* |
+| **Background sync** | Never blocks reading. Optional sync on startup or when the cache is a day old |
+| **Sorting** | Alphabetical, or by date added |
 
 Metadata sync is read-only. The plugin writes to Zotero only when you turn on highlight or reading-position sync.
 
@@ -37,7 +37,7 @@ Metadata sync is read-only. The plugin writes to Zotero only when you turn on hi
 1. Download `zotero.koplugin.zip` from the [latest release](https://github.com/firilisinof/zotero.koplugin/releases/latest), or build it with `make package`.
 2. Extract it into `<KOReader>/plugins/` and restart KOReader.
 3. Create an API key in your [Zotero settings](https://www.zotero.org/settings/keys) and note your user ID.
-4. Open **Zotero** from the search tab (🔍) of the top menu, then **Settings → Configure Zotero account**.
+4. Open **Zotero** from the search tab (magnifying glass) of the top menu, then **Settings → Configure Zotero account**.
 
 When updating, replace the plugin folder. Your downloads, reading progress and settings live in `<KOReader>/zotero` and stay put.
 

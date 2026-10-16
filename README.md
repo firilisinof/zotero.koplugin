@@ -4,7 +4,7 @@
 
 **Your Zotero library on your e-reader.** Browse collections, search, download and read PDFs and EPUBs, then sync your highlights and reading position back to Zotero.
 
-[Install](#install) · [Features](#features) · [Configuration](#configuration) · [Development](#development)
+[Install](#install) | [Features](#features) | [Configuration](#configuration) | [Development](#development)
 
 <br>
 

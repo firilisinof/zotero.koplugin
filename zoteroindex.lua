@@ -56,6 +56,7 @@ local function attachmentRow(key, item, parent)
         title = itemTitle(parent) or itemTitle(item) or nonempty(item.data.filename),
         author = nonempty(owner.meta and owner.meta.creatorSummary),
         year = publicationYear(owner),
+        date_added = nonempty(owner.data.dateAdded),
         file_format = item.data.contentType == "application/pdf" and "PDF" or "EPUB",
         downloadable = item.data.linkMode ~= "linked_file",
     }
@@ -127,6 +128,24 @@ local function byText(first, second)
     return first.text < second.text
 end
 
+---@param order string
+---@return fun(first: ZoteroRow, second: ZoteroRow): boolean
+local function itemComparator(order)
+    if order == "alphabetical" then return byText end
+    return function(first, second)
+        local a, b = first.date_added, second.date_added
+        -- Zotero returns UTC ISO timestamps, whose lexical order is chronological.
+        -- Undated legacy rows stay last in both directions until their next sync (#5).
+        if a ~= b then
+            if not a then return false end
+            if not b then return true end
+            if order == "date_added_desc" then return a > b end
+            return a < b
+        end
+        return byText(first, second)
+    end
+end
+
 -- Walk the library once instead of rescanning every item on every render.
 ---@param api ZoteroAPI
 ---@return ZoteroIndex
@@ -140,8 +159,9 @@ local function buildIndex(api)
             indexAttachment(index, key, item, parent)
         end
     end
-    for _, entries in pairs(index.by_collection) do table.sort(entries, byText) end
-    table.sort(index.searchable, byText)
+    local compare = itemComparator(api.getSortOrder())
+    for _, entries in pairs(index.by_collection) do table.sort(entries, compare) end
+    table.sort(index.searchable, compare)
     return index
 end
 

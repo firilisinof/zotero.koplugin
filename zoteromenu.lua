@@ -41,6 +41,25 @@ end
 
 ---@param plugin table
 ---@return table[]
+local function sortEntries(plugin)
+    local entries = {}
+    for _, choice in ipairs({ { "alphabetical", _("Alphabetical") },
+        { "date_added_desc", _("Date added: newest first") }, { "date_added_asc", _("Date added: oldest first") } }) do
+        local order = choice[1]
+        table.insert(entries, { text = choice[2], checked_func = function() return plugin.api.getSortOrder() == order end,
+            callback = function()
+                plugin.api.setSortOrder(order)
+                if plugin.browser then
+                    plugin.browser.current_view.page = 1
+                    plugin.browser:refresh()
+                end
+            end })
+    end
+    return entries
+end
+
+---@param plugin table
+---@return table[]
 local function settingsEntries(plugin)
     local api = plugin.api
     local entries = {
@@ -51,6 +70,7 @@ local function settingsEntries(plugin)
         entry(plugin, _("Items per page"), function() plugin:setItemsPerPage() end),
     }
     for _, item in ipairs(webdavEntries(plugin)) do table.insert(entries, item) end
+    table.insert(entries, { text = _("Sort items"), sub_item_table = sortEntries(plugin) })
     table.insert(entries, { text = _("Share reading position"),
         checked_func = function() return plugin.api.progress and plugin.api.progress:enabled() or false end,
         callback = function() plugin.api.progress:safe("toggle") end })

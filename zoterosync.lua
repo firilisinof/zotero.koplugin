@@ -1,5 +1,8 @@
 local Sync = {}
 
+-- Bump when newly cached fields need a full backfill for unchanged server items (#5).
+local CACHE_SCHEMA = 1
+
 --- Choose the version that cannot skip intervening changes. Example: API.earlierVersion("12", "13").
 ---@param api ZoteroAPI
 ---@param first string|number|nil
@@ -18,7 +21,7 @@ local CACHED_FIELDS = {
     meta = { creatorSummary = true, parsedDate = true },
     -- nameOfAct, caseName and subject hold the title of statutes, cases and emails.
     data = { itemType = true, title = true, nameOfAct = true, caseName = true, subject = true, parentItem = true,
-        collections = true, tags = true, DOI = true, date = true, contentType = true, linkMode = true,
+        collections = true, tags = true, DOI = true, date = true, dateAdded = true, contentType = true, linkMode = true,
         filename = true, md5 = true, note = true, deleted = true },
 }
 
@@ -151,6 +154,7 @@ end
 ---@field items ZoteroStagedCache|nil
 ---@field collections ZoteroStagedCache|nil
 ---@field error string|nil
+---@field cache_schema number|nil
 
 ---@param api ZoteroAPI
 ---@param source ZoteroDeltaSource
@@ -204,8 +208,8 @@ end
 function Sync.stageLibrary(api, rebuild, stage)
     local err = api.ensureKeyAndID()
     if err then return { error = err } end
-    rebuild = rebuild or missingCache(api)
-    local since, result = rebuild and 0 or api.getLibraryVersion(), {}
+    rebuild = rebuild or missingCache(api) or api.getSettings():readSetting("cache_schema") ~= CACHE_SCHEMA
+    local since, result = rebuild and 0 or api.getLibraryVersion(), { cache_schema = CACHE_SCHEMA }
     for _, source in ipairs(SOURCES) do
         local staged, stage_error = stageDelta(api, source, since, rebuild, stage[source.endpoint])
         if stage_error then return { error = stage_error } end
@@ -244,6 +248,7 @@ function Sync.commitLibrary(api, result, stage)
     -- Each fetch observes a potentially different version. The earlier one avoids
     -- skipping changes made between requests on the next sync.
     api.setLibraryVersion(api.earlierVersion(result.items.version, result.collections.version))
+    api.getSettings():saveSetting("cache_schema", result.cache_schema)
     api.setLastSync(os.time())
     api.saveModifiedItems()
 end
@@ -264,6 +269,7 @@ end
 function Sync.resetSyncState(api)
     api.setItems({})
     api.setCollections({})
+    api.getSettings():delSetting("cache_schema")
     api.setLibraryVersion(0)
     api.setLastSync(0)
     api.saveModifiedItems()

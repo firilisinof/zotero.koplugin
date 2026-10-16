@@ -38,6 +38,8 @@ function Env:library()
     for _, collection in ipairs(Fixtures.decode("collections.json")) do collections[collection.key] = collection end
     self.api.setItems(items)
     self.api.setCollections(collections)
+    -- Model a library synced by the current cache writer; migration specs remove this marker.
+    self.api.getSettings():saveSetting("cache_schema", 1)
 end
 
 function Env:syncRoutes()

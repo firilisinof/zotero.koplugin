@@ -6,6 +6,13 @@
 
 [Install](#install) | [Features](#features) | [Configuration](#configuration) | [Development](#development)
 
+<br>
+
+<img src="screenshots/home.png" width="23%" alt="Zotero home with Continue reading, Collections, All items, On device and Search">&nbsp;
+<img src="screenshots/collection.png" width="23%" alt="A collection listing papers with author, year, format and download status">&nbsp;
+<img src="screenshots/search.png" width="23%" alt="Search results for the word learning">&nbsp;
+<img src="screenshots/notes.png" width="23%" alt="Zotero notes for a paper, shown offline">
+
 </div>
 
 ## Features

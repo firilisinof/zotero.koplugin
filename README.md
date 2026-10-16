@@ -4,7 +4,7 @@
 
 **Your Zotero library on your e-reader.** Browse collections, search, download and read PDFs and EPUBs, then sync your highlights and reading position back to Zotero.
 
-[Install](#install) | [Features](#features) | [Configuration](#configuration) | [Development](#development)
+[Install](#install) | [Features](#features) | [Configuration](#configuration) | [Compatibility](#compatibility-and-requirements) | [Development](#development)
 
 <br>
 
@@ -76,6 +76,22 @@ return {
 ```
 
 </details>
+
+## Compatibility and requirements
+
+- **Tested software:** KOReader desktop emulator `v2026.07.2-130-g92bf75f03` and Zotero desktop **10.0.1**. These identify the validated combination; a minimum supported KOReader version has not been established. Other builds and versions are unverified.
+- **Hardware:** v1.0.0 is released without Kindle hardware testing. Installation, performance and physical suspend/resume on Kindle or other e-readers are unverified.
+- **Account and permissions:** a Zotero account, library ID and API key with read access to the selected personal or group library. Enable file access for Zotero-hosted downloads and note access to read notes. Highlight sync requires write access to that library. Reading-position sharing requires personal-library read/write permission for the key owner, including when reading a group attachment.
+- **Storage:** PDFs and EPUBs must be available through Zotero storage, or WebDAV for personal libraries. Group downloads use Zotero storage. Linked files cannot be downloaded from Zotero, but an existing local copy can be opened.
+- **Runtime and connectivity:** no companion service, desktop extension or extra device runtime is required. Sync and new downloads need network access; existing downloads remain readable offline. Automatic sync only uses an existing connection.
+
+## Known limitations
+
+- **Handoffs:** highlight and position sharing are separate opt-in settings. Open documents through the plugin and synchronize Zotero before switching readers. Both sides must use identical attachment bytes; replacing a document pauses sharing for the old identity. Pending imports into a closed document wait until it is reopened. Conflicting highlight edits require review through **Resolve highlight conflicts**.
+- **PDFs:** position sharing uses physical pages. Highlight sync supports one page or two consecutive pages; longer ranges are unsupported. Exact imported rectangles are displayed in ordinary PDF view; reflow uses KOReader's native word-based rendering. Highlight ordering uses page and vertical position rather than an exact character offset.
+- **EPUBs:** position and highlight conversion requires an exact mapping to XHTML content. Highlight ranges must stay within one spine entry; cross-spine and collapsed ranges are unsupported. MathML/object transformations, CDATA boundaries, unresolved named entities, ambiguous text normalization and media offsets can prevent conversion. Sections are limited to 8 MiB and XML depth 256. Unsupported locations are reported rather than approximated.
+- **Annotations:** text highlights and underlines are supported. Drawings, area annotations, embedded read-only annotations, unsupported remote colors and formatted native comments are preserved rather than rewritten. KOReader invert maps to a highlight, olive maps to green, and other unknown local colors use yellow.
+- **Browsing:** search covers titles, first authors and DOIs. The tag filter accepts one exact, case-sensitive tag. Saved searches are not supported. Collection downloads include direct attachments only, subject to the active tag filter. “On device” lists downloaded attachments still present in the active library's filtered metadata cache.
 
 ## Development
 

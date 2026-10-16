@@ -3,9 +3,9 @@ package.path = "plugins/zotero.koplugin/?.lua;" .. package.path
 local Env = require("spec.support.zotero_env")
 local FakeUI = require("spec.support.fake_ui")
 local FakeReader = require("spec.support.fake_reader")
-local Browser = require("zoterobrowser")
-local ReaderReturn = require("zoteroreader")
-local UI = require("zoteroui")
+local Browser = require("src.zoterobrowser")
+local ReaderReturn = require("src.zoteroreader")
+local UI = require("src.zoteroui")
 local Plugin = dofile("plugins/zotero.koplugin/main.lua")
 local PluginLoader = require("pluginloader")
 

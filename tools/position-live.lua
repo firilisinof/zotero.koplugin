@@ -9,20 +9,20 @@ require("document/canvascontext"):init(Device)
 require("ui/bidi").setup()
 local plugin = assert(os.getenv("ZOTERO_PLUGIN_ROOT"))
 package.path = plugin .. "/?.lua;" .. package.path
-local api = require("zoteroapi")
+local api = require("src.zoteroapi")
 local manifest = api.util.decode(assert(api.util.read(assert(os.getenv("ZOTERO_POSITION_MANIFEST")))))
 assert(not manifest.cleaned and manifest.test_id, "Expected active test fixture manifest")
 local credentials = require("luasettings"):open(assert(os.getenv("ZOTERO_TEST_CREDENTIALS")))
 local key = assert(credentials:readSetting("api_key"))
-local Remote = require("zoteroprogressremote")
+local Remote = require("src.zoteroprogressremote")
 local authorization = Remote.authorize(api, key)
 assert(not authorization.error, authorization.error)
 assert(authorization.owner == manifest.owner, "Test fixture account mismatch")
 local Registry = require("document/documentregistry")
-local EPUB = require("zoteroepub")
+local EPUB = require("src.zoteroepub")
 local read_only = os.getenv("ZOTERO_POSITION_READ_ONLY") == "1"
 for _, entry in ipairs(manifest.items) do
-    assert(require("zoteroprogressidentity").checksum(entry.path, true) == entry.md5, "Test fixture changed")
+    assert(require("src.zoteroprogressidentity").checksum(entry.path, true) == entry.md5, "Test fixture changed")
     local identity = { owner = manifest.owner, library = "users/" .. manifest.owner, key = entry.key, md5 = entry.md5 }
     local doc = assert(Registry:openDocument(entry.path))
     local codec, value

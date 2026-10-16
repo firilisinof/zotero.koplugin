@@ -8,16 +8,18 @@ Fork of [stelzch/zotero.koplugin](https://github.com/stelzch/zotero.koplugin).
 | Path | What it is |
 | --- | --- |
 | `main.lua` | KOReader plugin lifecycle, dispatcher actions and sync scheduling |
-| `zoteroapi.lua` | Public API facade and local cache I/O |
-| `zotero{settings,index,transport,download,sync}.lua` | Focused API behavior modules, injected with the facade |
-| `zoterosyncjob.lua` | Background library sync: operation lock, non-modal child, parent-only commit and staged-file cleanup |
-| `zotero{browser,row,dialogs,menu,ui}.lua` | Browser, metadata rows, configuration dialogs, menu and KOReader UI boundary |
-| `zoteroprogress*.lua` | Opt-in position lifecycle, durable outbox, identity, reader codecs, worker and settings client |
-| `zoterohighlight*.lua`, `zoteropdf.lua`, `zoterocfirange.lua` | Opt-in annotation lifecycle, merge journal, conditional item writes, reader import and range/rectangle conversion |
-| `zotero{epub,cfi,xml,unicode}.lua` | Exact EPUB point conversion; SLAXML is isolated behind `zoteroxml` |
-| `zotero{util,archive,types}.lua` | Filesystem/archive boundaries and shared Lua annotations |
+| `src/zoteroapi.lua` | Public API facade and local cache I/O |
+| `src/zotero{settings,index,transport,download,sync}.lua` | Focused API behavior modules, injected with the facade |
+| `src/zoterosyncjob.lua` | Background library sync: operation lock, non-modal child, parent-only commit and staged-file cleanup |
+| `src/zotero{browser,row,dialogs,menu,ui}.lua` | Browser, metadata rows, configuration dialogs, menu and KOReader UI boundary |
+| `src/zoteroprogress*.lua` | Opt-in position lifecycle, durable outbox, identity, reader codecs, worker and settings client |
+| `src/zoterohighlight*.lua`, `src/zoteropdf.lua`, `src/zoterocfirange.lua` | Opt-in annotation lifecycle, merge journal, conditional item writes, reader import and range/rectangle conversion |
+| `src/zotero{epub,cfi,xml,unicode}.lua` | Exact EPUB point conversion; SLAXML is isolated behind `zoteroxml` |
+| `src/zotero{util,archive,types}.lua` | Filesystem/archive boundaries and shared Lua annotations |
 | `_meta.lua` | Plugin manifest read by KOReader's plugin loader |
-| `spec/` | busted specs, run inside a real KOReader build |
+| `spec/unit/` | Standalone busted unit specs, run with LuaJIT |
+| `spec/*_spec.lua` | Offline integration specs, run inside a real KOReader build |
+| `.github/workflows/ci.yml` | Syntax, unit and package checks on pushes and pull requests |
 | `tools/` | Development scripts, not shipped to the device |
 | `docs/roadmap.md` | Implemented capabilities and links to format support boundaries |
 
@@ -41,7 +43,7 @@ make package # create dist/zotero.koplugin.zip for installation
 make test KOREADER_SRC=~/src/koreader
 ```
 
-`make package` uses `tools/package.sh` to archive the current working tree's top-level Lua files and `LICENSE*` under `zotero.koplugin/`. It requires `zip`, but no KOReader checkout. The ignored `dist/` directory holds the resulting ZIP. Packaging stages a fresh archive before replacing the previous package. Run `make test` separately before distributing it.
+`make package` uses `tools/package.sh` to archive the current working tree's entry points, `src/*.lua` and `LICENSE*` under `zotero.koplugin/`. It requires `zip`, but no KOReader checkout. The ignored `dist/` directory holds the resulting ZIP. Packaging stages a fresh archive before replacing the previous package. Run `make test` separately before distributing it.
 
 ### Why edits are live
 
@@ -76,7 +78,7 @@ repository and cannot be committed by accident. The specs never read it.
 
 ## Specs
 
-`spec/*_spec.lua` covers the API, widget guards, group accounts, indexing, downloads, settings and scheduling. All specs run entirely offline. `zoteroapi.lua` exposes its HTTP transport as `API.http`, and each test swaps in a `spec/support/fake_http.lua` instance serving the canned responses in `spec/fixtures/`:
+`spec/*_spec.lua` covers the API, widget guards, group accounts, indexing, downloads, settings and scheduling. All specs run entirely offline. `src/zoteroapi.lua` exposes its HTTP transport as `API.http`, and each test swaps in a `spec/support/fake_http.lua` instance serving the canned responses in `spec/fixtures/`:
 
 ```lua
 fake:on("GET", "/items%?.*start=0$", {
@@ -91,7 +93,7 @@ or the fetch reports that it could not size the collection.
 
 `API.http` is the network injection seam. Browser tests also inject named UI and task-runner fakes. File I/O and archive unpacking stay real, because each test gets its own temporary Zotero directory under `KO_HOME`, which the test runner wipes before every session.
 
-`API` is a singleton module, so every test calls `package.reload("zoteroapi")` in
+`API` is a singleton module, so every test calls `package.reload("src.zoteroapi")` in
 `before_each` to be sure nothing carries over through module-level state.
 
 The fixtures are hand-written to match Zotero Web API v3 response shapes. To check
@@ -126,14 +128,14 @@ index stale.
 
 `displayCollection` and `displaySearchResults` return copies because the browser inserts its own rows and adds presentation fields. Neither checks the disk: `Browser:updateItems` calls `API.markDownloaded` for the rows of the visible page, so `downloaded` stays fresh independently of the cached index without a check per row. A row that no view has marked has no `downloaded` field. `displayOnDevice` filters against one `storage_dir` listing from `API.getStoredPaths` rather than checking each attachment, and opening a row still resolves through `getLocalAttachmentPath`. Changing `filter_tag` also drops the index.
 
-Attachment rows also carry `title`, `author`, `year`, `file_format` and `downloadable` for the native metadata layout in `zoterorow.lua`. The legacy `text` remains the sorting and search source. The browser treats items per page as a maximum and reduces capacity to fit two title lines plus secondary metadata at the active font size.
+Attachment rows also carry `title`, `author`, `year`, `file_format` and `downloadable` for the native metadata layout in `src/zoterorow.lua`. The legacy `text` remains the sorting and search source. The browser treats items per page as a maximum and reduces capacity to fit two title lines plus secondary metadata at the active font size.
 
 ## Behaviour worth knowing
 
-- `items.json` keeps only the item fields listed in `CACHED_FIELDS` in `zoterosync.lua`, and never
+- `items.json` keeps only the item fields listed in `CACHED_FIELDS` in `src/zoterosync.lua`, and never
   annotations. Reading a new item field means adding it there. Cached items gain it only when they
   change on the server or after an account reset. Older full caches are pruned on their next sync.
-- Library sync runs in `zoterosyncjob.lua` through the non-modal worker. The child's `stageLibrary`
+- Library sync runs in `src/zoterosyncjob.lua` through the non-modal worker. The child's `stageLibrary`
   writes `items.json.sync` and `collections.json.sync` and returns only versions and changed flags.
   The parent's `commitLibrary` renames them into place after checking that the library prefix, API
   key and Zotero directory are unchanged. Cancellation, failure, timeout, suspend and account changes
@@ -175,11 +177,11 @@ Attachment rows also carry `title`, `author`, `year`, `file_format` and `downloa
 - Account changes reset metadata and last-sync time, preserving downloaded documents and sidecars. WebDAV preferences remain saved but are inactive for groups.
 - Removing credentials retains the recorded cache owner and storage namespace. `getLocalAttachmentPath` checks real file presence without credentials, HTTP, version checks or writes.
 - Selecting a present PDF or EPUB opens it directly, including stale and linked copies. Explicit collection downloads still update stale attachments. “On device” lists present attachments from the active filtered index, with search scoped to local copies.
-- Zotero home offers Continue reading, Collections, All items, On device and Search. `zoteroheader.lua` uses native TitleBar and ButtonTable widgets for persistent Home, Back and Search controls. Collection names and search queries appear in the title.
+- Zotero home offers Continue reading, Collections, All items, On device and Search. `src/zoteroheader.lua` uses native TitleBar and ButtonTable widgets for persistent Home, Back and Search controls. Collection names and search queries appear in the title.
 - KOReader mounts a new plugin instance for the file manager and for every opened book. `Plugin:init` sets up only the API, position and highlight coordinators and the sync job. `Plugin:ensureBrowser` builds the Browser and `zotero_dialog` on first use, from the open action or reader return, and contains build errors like init errors. Code that touches `plugin.browser` or `zotero_dialog` must call it or tolerate nil, as sync commit and the tag filter do. Scripts that mount a plugin directly must call it before using `plugin.browser`.
-- `zoteroreader.lua` binds return behavior to a successfully opened ReaderUI instance through its after-open callback. Native Home, file-browser menu and end-of-book file-browser actions save/close the reader before restoring the captured library view on the fresh file-manager plugin. Document reloads retain the binding. Ordinary opens, document switches and quit are unaffected.
+- `src/zoteroreader.lua` binds return behavior to a successfully opened ReaderUI instance through its after-open callback. Native Home, file-browser menu and end-of-book file-browser actions save/close the reader before restoring the captured library view on the fresh file-manager plugin. Document reloads retain the binding. Ordinary opens, document switches and quit are unaffected.
 - `continue_reading` records the last successful plugin-opened document per library. The home entry rechecks the cached attachment and exact local path before opening. KOReader owns local reading progress and sidecars; the optional sharing coordinator keeps its own outbox outside sidecars.
-- `zoteroposition.lua` stores browser views, pages and back history in `browser_positions`, keyed by library prefix. Browser reopening reloads the latest snapshot because the file manager and reader have separate plugin instances. Page turns and navigation update only the shared in-memory settings. `meta.lua` is flushed when the browser closes, before it closes to open a document and on `Plugin:onSuspend`. A spec that simulates a restart with `api.init` must pass through one of those boundaries first. Empty caches after switching libraries defer destination validation until metadata returns.
+- `src/zoteroposition.lua` stores browser views, pages and back history in `browser_positions`, keyed by library prefix. Browser reopening reloads the latest snapshot because the file manager and reader have separate plugin instances. Page turns and navigation update only the shared in-memory settings. `meta.lua` is flushed when the browser closes, before it closes to open a document and on `Plugin:onSuspend`. A spec that simulates a restart with `api.init` must pass through one of those boundaries first. Empty caches after switching libraries defer destination validation until metadata returns.
 - Versions belong to individual attachments in `.zotero-<key>.version`. A legacy parent-level marker is accepted only for a single readable attachment. Transfers and archive extraction are staged before replacing the document.
 - Collection downloads use one dismissible subprocess per stale attachment. The subprocess may write files but never changes UI or settings. The parent reports progress and failures and refreshes file-presence indicators.
 - `last_sync` is recorded only after full sync success. `sync_on_startup` and `sync_on_open` default to false. Automatic sync needs an existing connection, never prompts to enable Wi-Fi and shows no progress. Manual sync shows a tap-to-cancel message. Browser-open sync uses a fixed 24-hour threshold.
@@ -189,7 +191,7 @@ Attachment rows also carry `title`, `author`, `year`, `file_format` and `downloa
 
 Reading-position sharing is off by default. Its only production write is a conditional PUT to one `lastPageIndex` synced setting. Personal and group settings both live under the API key owner's `/users/<owner>/settings`; group settings include the group ID in their name. Metadata cursors remain independent. The parent alone writes the durable progress outbox; network work runs in the non-modal child with the existing operation lock. Never log API credentials.
 
-`zoteroprogressstore.lua` decodes each outbox once per Store and writes through, because only the parent writes it and both coordinators are shared through `api.progress` and `api.highlights`. `get`, `load` and `put` copy records the way the old JSON round trip did: two fields holding one table become separate tables, so capturing a local edit into `entries` cannot rewrite the `delivery.before` import baseline. An unchanged record writes nothing, and a failed write rolls the cache back to what the disk holds. Corruption written behind the cache is only noticed by the next restarted coordinator.
+`src/zoteroprogressstore.lua` decodes each outbox once per Store and writes through, because only the parent writes it and both coordinators are shared through `api.progress` and `api.highlights`. `get`, `load` and `put` copy records the way the old JSON round trip did: two fields holding one table become separate tables, so capturing a local edit into `entries` cannot rewrite the `delivery.before` import baseline. An unchanged record writes nothing, and a failed write rolls the cache back to what the disk holds. Corruption written behind the cache is only noticed by the next restarted coordinator.
 
 `make test` runs against the existing compiled emulator without triggering a native rebuild. `tools/check-position-oracle.py` independently executes real crengine and CFI/sanitizer code extracted from installed Zotero 10.0.1. `tools/smoke-progress.lua` exercises actual ReaderUI lifecycle with offline fixtures and a fresh `/tmp` KO_HOME. Live checks are separate and explicitly use only dedicated attachments; see `docs/position-sharing.md`.
 
@@ -206,9 +208,10 @@ scratch document, never by writing the source PDF. The reader-instance geometry
 hook preserves imported rectangles and is removed on close. See
 `docs/highlight-sync.md` for tests, live tools and support limits.
 
-## Not set up yet
+## Continuous integration
 
-No CI, no linting, no deploy script. Tests are local only for now.
+`make check` runs standalone unit tests, Lua syntax checks and package validation. GitHub Actions runs the same checks on pushes and pull requests. The full KOReader integration suite remains available through `make test`; CI does not build the emulator.
+
 
 ## Code style
 

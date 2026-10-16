@@ -28,7 +28,7 @@ This addon for [KOReader](https://github.com/koreader/koreader) allows you to vi
 3. Obtain an API token for your account by generating a new key in your [Zotero Settings](https://www.zotero.org/settings/keys). Note the userID and the private key.
 4. Set your credentials for Zotero either directly in KOReader or edit the configuration file as described [below](#manual-configuration).
 
-Packaging requires `make`, a POSIX shell and `zip`. It includes the current working tree's top-level Lua files and dependency licenses, and runs independently of the KOReader build and test suite. Run `make test` before distributing a package. When updating, replace the plugin files while preserving the separate `<KOReader>/zotero` data directory and document sidecars.
+Packaging requires `make`, a POSIX shell and `zip`. It includes the current working tree's Lua entry points and `src/` modules and dependency licenses, and runs independently of the KOReader build and test suite. Run `make test` before distributing a package. When updating, replace the plugin files while preserving the separate `<KOReader>/zotero` data directory and document sidecars.
 
 In KOReader, the Zotero plugin will be visible in the search tab (magnifying glass icon) inside the top menu.
 
@@ -150,7 +150,14 @@ return {
 
 ## Development and validation
 
-Run `make test` for all offline specs and `make run` for the emulator. See [CLAUDE.md](CLAUDE.md) for setup and test conventions.
+Implementation modules live in `src/`; KOReader loads `main.lua` and `_meta.lua` from the plugin root. Internal imports use `require("src.zotero…")`. Tests and development tools are excluded from the installable ZIP.
+
+- `make check`: standalone unit tests, Lua syntax checks and package verification. Requires LuaJIT, busted, Python 3 and zip. On Ubuntu: `sudo apt-get install luajit lua-busted python3 zip`.
+- `make test-unit`: run only the standalone specs in `spec/unit/`.
+- `make test`: run the full offline integration suite against a built KOReader emulator.
+- `make run`: open the emulator.
+
+Override `LUA` and `BUSTED` to use executables outside PATH. GitHub Actions runs `make check` on pushes and pull requests without credentials or a KOReader build. The standalone tests cover Unicode boundaries, XML parsing and EPUB CFI conversion; real reader, UI, API and filesystem integration remains covered by `make test`. See [CLAUDE.md](CLAUDE.md) for emulator setup and test conventions.
 
 For a fixture-only UI smoke test, run the following from the built emulator's `koreader` directory, adjusting the plugin path if needed:
 

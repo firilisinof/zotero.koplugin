@@ -1,6 +1,6 @@
-local XML = require("zoteroxml")
-local CFI = require("zoterocfi")
-local Unicode = require("zoterounicode")
+local XML = require("src.zoteroxml")
+local CFI = require("src.zoterocfi")
+local Unicode = require("src.zoterounicode")
 local EPUB = { VERSION = 1 }
 EPUB.__index = EPUB
 local replaced = { html = true, head = true, body = true, base = true, meta = true }

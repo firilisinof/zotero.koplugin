@@ -3,7 +3,7 @@ require("commonrequire")
 package.path = "plugins/zotero.koplugin/?.lua;" .. package.path
 local Env = require("spec.support.zotero_env")
 local Fixtures = require("spec.support.fixtures")
-local Util = require("zoteroutil")
+local Util = require("src.zoteroutil")
 local lfs = require("libs/libkoreader-lfs")
 local USER_ID, API_KEY = "4242", "s3cret"
 
@@ -377,7 +377,7 @@ describe("Zotero API client", function()
             env:fullSyncRoutes()
             ZoteroAPI.syncAllItems()
 
-            local reloaded = package.reload("zoteroapi")
+            local reloaded = package.reload("src.zoteroapi")
             reloaded.init(ZoteroAPI.zotero_dir)
 
             assert.is_equal("Attention Is All You Need", reloaded.getItems()["PARENT01"].data.title)

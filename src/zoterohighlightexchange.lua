@@ -1,8 +1,8 @@
-local Helpers = require("zoterohighlightutil")
+local Helpers = require("src.zoterohighlightutil")
 local util = require("util")
-local Remote = require("zoterohighlightremote")
-local Merge = require("zoterohighlightmerge")
-local Codec = require("zoterohighlightcodec")
+local Remote = require("src.zoterohighlightremote")
+local Merge = require("src.zoterohighlightmerge")
+local Codec = require("src.zoterohighlightcodec")
 local Exchange = {}
 
 ---@param codec table

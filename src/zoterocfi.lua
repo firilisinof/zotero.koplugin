@@ -1,5 +1,5 @@
 -- Compatibility target: EpubCFI bundled with Zotero 10.0.1 (epub.js fork).
-local XML = require("zoteroxml")
+local XML = require("src.zoteroxml")
 local CFI = {}
 
 ---@param node table

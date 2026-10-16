@@ -1,10 +1,10 @@
 require("commonrequire")
 package.path = "plugins/zotero.koplugin/?.lua;" .. package.path
 local BD = require("ui/bidi")
-local Browser = require("zoterobrowser")
+local Browser = require("src.zoterobrowser")
 local Env = require("spec.support.zotero_env")
 local FakeUI = require("spec.support.fake_ui")
-local Row = require("zoterorow")
+local Row = require("src.zoterorow")
 local Screen = require("device").screen
 local _ = require("gettext")
 

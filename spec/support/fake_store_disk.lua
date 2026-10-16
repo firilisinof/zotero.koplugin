@@ -1,6 +1,6 @@
 -- Real zoteroutil file I/O for outbox store specs, counting reads and writes and
 -- failing writes on demand. Store calls util functions with a dot, so these are closures.
-local Util = require("zoteroutil")
+local Util = require("src.zoteroutil")
 local FakeStoreDisk = {}
 
 function FakeStoreDisk.new()

@@ -1,4 +1,4 @@
-local EPUB = require("zoteroepub")
+local EPUB = require("src.zoteroepub")
 local Codec = {}
 Codec.__index = Codec
 

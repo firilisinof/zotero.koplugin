@@ -109,7 +109,7 @@ end
 ---@param limit number|nil Seconds before the child is killed
 ---@return function
 function UI:background(task, callback, limit)
-    return require("zoteroprogressworker").run(task, callback, limit)
+    return require("src.zoteroprogressworker").run(task, callback, limit)
 end
 
 --- Show persistent progress that calls on_cancel once when tapped away or closed. Example: UI:cancellable(text, cancel).
@@ -148,7 +148,7 @@ end
 ---@param library string
 ---@param position ZoteroBrowserPosition
 function UI:bindReaderReturn(reader, library, position)
-    require("zoteroreader").bind(reader, function()
+    require("src.zoteroreader").bind(reader, function()
         local plugin = require("pluginloader"):getPluginInstance("zotero")
         if not plugin or not plugin.initialized then return end
         plugin.api.saveBrowserPosition(library, position)

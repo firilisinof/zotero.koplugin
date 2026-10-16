@@ -1,4 +1,4 @@
-local CFI = require("zoterocfi")
+local CFI = require("src.zoterocfi")
 local Range = {}
 
 --- Combine two verified point CFIs using the common path. Example: Range.join(start, finish).

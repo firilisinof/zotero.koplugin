@@ -1,7 +1,7 @@
-local Helpers = require("zoterohighlightutil")
+local Helpers = require("src.zoterohighlightutil")
 local util = require("util")
-local ZoteroUtil = require("zoteroutil")
-local Range = require("zoterocfirange")
+local ZoteroUtil = require("src.zoteroutil")
+local Range = require("src.zoterocfirange")
 local Codec = {}
 Codec.__index = Codec
 local colors = { yellow = "#ffd400", red = "#ff6666", green = "#5fb236", blue = "#2ea8e5",
@@ -18,11 +18,11 @@ local color_names = { ["#ffd400"] = "yellow", ["#ff6666"] = "red", ["#5fb236"] =
 function Codec.open(identity, dom_version, matrices, scratch)
     local doc = assert(require("document/documentregistry"):openDocument(identity.path), "Could not open annotation document")
     local self = setmetatable({ document = doc }, Codec)
-    if identity.format == "application/pdf" then self.pdf = require("zoteropdf").new(doc, matrices, scratch); return self end
+    if identity.format == "application/pdf" then self.pdf = require("src.zoteropdf").new(doc, matrices, scratch); return self end
     assert(identity.format == "application/epub+zip", "Unsupported highlight format " .. tostring(identity.format))
     doc:requestDomVersion(assert(dom_version, "Expected enrolled EPUB DOM version"))
     assert(doc:loadDocument(), "Could not load EPUB for highlights"); doc:render()
-    self.epub = require("zoteroepub").new(doc, dom_version)
+    self.epub = require("src.zoteroepub").new(doc, dom_version)
     return self
 end
 

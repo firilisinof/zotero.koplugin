@@ -2,8 +2,8 @@ require("commonrequire")
 package.path = "plugins/zotero.koplugin/?.lua;" .. package.path
 local Env = require("spec.support.zotero_env")
 local FakeUI = require("spec.support.fake_ui")
-local Browser = require("zoterobrowser")
-local Menus = require("zoteromenu")
+local Browser = require("src.zoterobrowser")
+local Menus = require("src.zoteromenu")
 
 describe("Zotero date-added sorting", function()
     local env, api

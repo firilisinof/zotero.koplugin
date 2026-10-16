@@ -1,4 +1,4 @@
-local Helpers = require("zoterohighlightutil")
+local Helpers = require("src.zoterohighlightutil")
 local util = require("util")
 local Local = {}
 
@@ -10,7 +10,7 @@ local function preparePDF(item)
         for page, part in pairs(item.ext) do pages[tonumber(page)] = part end
         item.ext = pages
     end
-    require("zoterohighlightpdfview").remember(item)
+    require("src.zoterohighlightpdfview").remember(item)
 end
 
 ---@param item table

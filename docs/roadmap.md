@@ -35,3 +35,17 @@ resolver; PDF conversion handles page coordinate transforms. Stable IDs, offline
 snapshots, conditional writes, tombstones and reviewed conflicts protect both
 sides. See [highlight sync](highlight-sync.md) for supported formats, preservation
 contracts, automated tests and controlled live handoffs.
+
+## Date-added sorting
+
+Settings → Sort items selects alphabetical, newest-first or oldest-first ordering
+across collection, All items, search and On device rows. Publication dates take
+precedence over attachment dates; standalone and orphan attachments use their own.
+Undated rows sort last. Collection folders stay alphabetical. The preference is
+persisted and invalidates the item index.
+
+Cache schema 1 retains `dateAdded`. Missing or different schema markers trigger a
+staged full metadata fetch on the next sync. Only a successful parent commit stores
+the marker, including for empty libraries; cancelled or failed upgrades retry.
+Account changes clear the marker. Additions to cached fields that require backfill
+must bump `CACHE_SCHEMA` in `zoterosync.lua`.

@@ -59,6 +59,37 @@ end)
 step("01-browser", function()
     browser:displayCollection("COLLAAA1")
 end)
+local sort_choices
+step("01a-newest-first", function()
+    local menu = {}
+    plugin:addToMainMenu(menu)
+    for _, entry in ipairs(menu.zotero.sub_item_table[5].sub_item_table) do
+        if entry.text == "Sort items" then sort_choices = entry.sub_item_table end
+    end
+    browser:displayAllItems()
+    sort_choices[2].callback()
+    assert(api.getSortOrder() == "date_added_desc")
+    assert(sort_choices[2].checked_func())
+    local previous
+    for _, row in ipairs(browser.item_table) do
+        if previous and row.date_added then assert(previous >= row.date_added) end
+        previous = row.date_added
+    end
+end)
+step("01b-oldest-first", function()
+    sort_choices[3].callback()
+    assert(api.getSortOrder() == "date_added_asc")
+    local previous
+    for _, row in ipairs(browser.item_table) do
+        if previous and row.date_added then assert(previous <= row.date_added) end
+        previous = row.date_added
+    end
+end)
+step("01c-alphabetical", function()
+    sort_choices[1].callback()
+    assert(api.getSortOrder() == "alphabetical")
+    browser:displayCollection("COLLAAA1")
+end)
 step("02-library-selector", function() plugin:setAccount() end)
 step("03-group-account", function()
     local selector = top()

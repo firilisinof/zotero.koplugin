@@ -134,7 +134,7 @@ end
 ---@param reset boolean|nil Fetch from version 0, keeping the current cache until that succeeds
 function Plugin:onZoteroSyncAction(reset)
     if not self:checkInitialized() then return end
-    self.sync_job:start(reset == true, false)
+    self.runtime:whenOnline(function() self.sync_job:start(reset == true, false) end)
 end
 
 --- Show committed metadata and hand off to position and highlight syncs. Example: plugin:afterSyncCommit().

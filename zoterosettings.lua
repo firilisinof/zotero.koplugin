@@ -151,6 +151,26 @@ function Settings.setFilterTag(api, tag)
     api.settings:flush()
 end
 
+--- Read the saved ordering, retaining the legacy default. Example: API.getSortOrder().
+---@param api ZoteroAPI
+---@return string
+function Settings.getSortOrder(api)
+    local order = read(api, "sort_order", "alphabetical")
+    if order == "date_added_desc" or order == "date_added_asc" then return order end
+    return "alphabetical"
+end
+
+--- Persist ordering and rebuild sorted lookups. Example: API.setSortOrder("date_added_desc").
+---@param api ZoteroAPI
+---@param order string
+function Settings.setSortOrder(api, order)
+    assert(order == "alphabetical" or order == "date_added_desc" or order == "date_added_asc",
+        "Invalid sort order " .. tostring(order) .. ", expected alphabetical, date_added_desc or date_added_asc")
+    api.settings:saveSetting("sort_order", order)
+    api.index = nil
+    api.settings:flush()
+end
+
 --- Expose KOReader settings for existing callers. Example: API.getSettings().
 ---@param api ZoteroAPI
 ---@return LuaSettings

@@ -74,6 +74,21 @@ describe("Zotero background library sync", function()
         api.http = env.http
     end
 
+    -- #9: offline, a manual sync failed with "temporary failure in name resolution".
+    it("offers Wi-Fi before a manual sync and starts nothing when declined", function()
+        runtime.online, runtime.decline_wifi = false, true
+        plugin:onZoteroSyncAction()
+        assert.equals(1, runtime.wifi_prompts)
+        assert.equals(0, #runtime.jobs)
+        assert.is_nil(api.operation)
+
+        runtime.decline_wifi = false
+        plugin:onZoteroSyncAction(true)
+        assert.equals(2, runtime.wifi_prompts)
+        assert.equals(1, #runtime.jobs)
+        assert.equals("sync", api.operation)
+    end)
+
     it("stages in the child and commits in the parent only after the result returns", function()
         env:syncRoutes()
         local before, index = snapshot(), api.getIndex()
@@ -109,7 +124,7 @@ describe("Zotero background library sync", function()
         local settings = api.util.read(api.zotero_dir .. "/meta.lua")
         plugin:onZoteroSyncAction()
         local result = runtime.worker:next().task()
-        assert.same({ items = { changed = true, version = "1230" },
+        assert.same({ cache_schema = 1, items = { changed = true, version = "1230" },
             collections = { changed = false, version = "1240" } }, result)
         assert.equals(settings, api.util.read(api.zotero_dir .. "/meta.lua"))
         assert.equals(1, #stagedFiles())
@@ -233,6 +248,7 @@ describe("Zotero background library sync", function()
     end)
 
     it("reports a failed commit without stamping the sync", function()
+        api.getSettings():delSetting("cache_schema")
         env:syncRoutes()
         -- A directory in place of items.json makes the rename fail.
         assert(os.remove(api.getCachePath("items")))
@@ -240,6 +256,7 @@ describe("Zotero background library sync", function()
         plugin:onZoteroSyncAction()
         runtime:work()
         assert.truthy(runtime:last().text:find("Could not replace", 1, true))
+        assert.is_nil(api.getSettings():readSetting("cache_schema"))
         assert.equals("1100", api.getLibraryVersion())
         assert.equals(500, api.getLastSync())
         assert.same({}, stagedFiles())

@@ -14,6 +14,29 @@ local function nonempty(value)
     if type(value) == "string" and value:find("%S") then return value end
 end
 
+-- A few item types keep their title in a type-specific field (#12): statutes
+-- in nameOfAct, legal cases in caseName and emails in subject.
+local TITLE_FIELDS = { "title", "nameOfAct", "caseName", "subject" }
+
+---@param item ZoteroItem|nil
+---@return string|nil
+local function itemTitle(item)
+    local fields = item and item.data
+    if type(fields) ~= "table" then return nil end
+    for _, name in ipairs(TITLE_FIELDS) do
+        local value = nonempty(fields[name])
+        if value then return value end
+    end
+end
+
+--- Read an item's title, whichever field its item type stores it in. Example: API.getItemTitle(items.PARENT01).
+---@param api ZoteroAPI
+---@param item ZoteroItem|nil
+---@return string|nil
+function Index.getItemTitle(api, item)
+    return itemTitle(item)
+end
+
 ---@param owner ZoteroItem
 ---@return string|nil
 local function publicationYear(owner)
@@ -30,9 +53,10 @@ local function attachmentRow(key, item, parent)
     local owner = parent or item
     return {
         key = key,
-        title = nonempty(parent and parent.data.title) or nonempty(item.data.title) or nonempty(item.data.filename),
+        title = itemTitle(parent) or itemTitle(item) or nonempty(item.data.filename),
         author = nonempty(owner.meta and owner.meta.creatorSummary),
         year = publicationYear(owner),
+        date_added = nonempty(owner.data.dateAdded),
         file_format = item.data.contentType == "application/pdf" and "PDF" or "EPUB",
         downloadable = item.data.linkMode ~= "linked_file",
     }
@@ -58,10 +82,11 @@ local function matchesTag(item, tag)
 end
 
 ---@param parent ZoteroItem
+---@param fallback string Used when the parent has no title of its own
 ---@return string
-local function nameFor(parent)
+local function nameFor(parent, fallback)
     local author = (parent.meta and parent.meta.creatorSummary) or "Unknown"
-    return author .. " - " .. tostring(parent.data.title)
+    return author .. " - " .. (itemTitle(parent) or fallback)
 end
 
 ---@param lists table<string, ZoteroRow[]>
@@ -81,7 +106,7 @@ end
 local function indexAttachment(index, key, item, parent)
     local row = attachmentRow(key, item, parent)
     -- Keep legacy ordering and ordered author/title/DOI matching independent of layout.
-    local title = parent and nameFor(parent) or nonempty(item.data.title) or row.title or key
+    local title = parent and nameFor(parent, row.title or key) or row.title or key
     local owner = parent or item
     row.text = title
     if parent or not item.data.parentItem then
@@ -103,6 +128,24 @@ local function byText(first, second)
     return first.text < second.text
 end
 
+---@param order string
+---@return fun(first: ZoteroRow, second: ZoteroRow): boolean
+local function itemComparator(order)
+    if order == "alphabetical" then return byText end
+    return function(first, second)
+        local a, b = first.date_added, second.date_added
+        -- Zotero returns UTC ISO timestamps, whose lexical order is chronological.
+        -- Undated legacy rows stay last in both directions until their next sync (#5).
+        if a ~= b then
+            if not a then return false end
+            if not b then return true end
+            if order == "date_added_desc" then return a > b end
+            return a < b
+        end
+        return byText(first, second)
+    end
+end
+
 -- Walk the library once instead of rescanning every item on every render.
 ---@param api ZoteroAPI
 ---@return ZoteroIndex
@@ -116,8 +159,9 @@ local function buildIndex(api)
             indexAttachment(index, key, item, parent)
         end
     end
-    for _, entries in pairs(index.by_collection) do table.sort(entries, byText) end
-    table.sort(index.searchable, byText)
+    local compare = itemComparator(api.getSortOrder())
+    for _, entries in pairs(index.by_collection) do table.sort(entries, compare) end
+    table.sort(index.searchable, compare)
     return index
 end
 

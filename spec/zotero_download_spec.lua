@@ -185,6 +185,17 @@ describe("Zotero API client", function()
             assert.is_equal("https://cloud.example.org/zotero/ATTACH01.zip", fake:urls()[1])
         end)
 
+        -- #14: Zotero desktop takes the URL without its zotero folder.
+        it("adds Zotero's folder and scheme to a URL entered as in Zotero desktop", function()
+            ZoteroAPI.setWebDAVUrl("cloud.example.org/")
+            fake:on("GET", ZIP_URL, { body = Fixtures.raw("attachment.zip") })
+
+            local _, e = ZoteroAPI.downloadAndGetPath("ATTACH01")
+
+            assert.is_nil(e)
+            assert.is_equal("https://cloud.example.org/zotero/ATTACH01.zip", fake:urls()[1])
+        end)
+
         it("unpacks the attachment out of the archive", function()
             fake:on("GET", ZIP_URL, { body = Fixtures.raw("attachment.zip") })
 
@@ -311,6 +322,32 @@ describe("Zotero API client", function()
     describe("checkWebDAV", function()
         it("reports a missing URL", function()
             assert.is_equal("No WebDAV URL provided", ZoteroAPI.checkWebDAV())
+        end)
+
+        -- #14: a URL without its scheme failed with "invalid host 'nil'", and one
+        -- without the zotero folder with a 404.
+        it("resolves the folder the way Zotero desktop does", function()
+            local folders = {
+                ["cloud.example.org/dav"] = "https://cloud.example.org/dav/zotero",
+                ["https://cloud.example.org/dav/"] = "https://cloud.example.org/dav/zotero",
+                [" https://cloud.example.org/zotero/ "] = "https://cloud.example.org/zotero",
+                ["https://cloud.example.org/Zotero"] = "https://cloud.example.org/Zotero",
+                ["http://nas.local:8080"] = "http://nas.local:8080/zotero",
+            }
+            for entered, folder in pairs(folders) do
+                ZoteroAPI.setWebDAVUrl(entered)
+                assert.is_equal(folder, ZoteroAPI.getWebDAVFolder())
+            end
+            ZoteroAPI.setWebDAVUrl("  ")
+            assert.is_nil(ZoteroAPI.getWebDAVFolder())
+        end)
+
+        it("checks the resolved folder", function()
+            ZoteroAPI.setWebDAVUrl("cloud.example.org/dav")
+            fake:on("PROPFIND", "/dav/zotero$", { code = 207, headers = {} })
+
+            assert.is_nil(ZoteroAPI.checkWebDAV())
+            assert.is_equal("https://cloud.example.org/dav/zotero", fake:urls()[1])
         end)
 
         it("accepts a multi-status response", function()

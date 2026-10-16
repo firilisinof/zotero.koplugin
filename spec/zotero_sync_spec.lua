@@ -69,11 +69,23 @@ describe("Zotero item cache sync", function()
             assert.same({ key = "PARENT01", version = 1200,
                 meta = { creatorSummary = "Vaswani et al.", parsedDate = "2017" },
                 data = { itemType = "journalArticle", title = "Attention Is All You Need", date = "2017",
+                    dateAdded = "2024-01-05T10:00:00Z",
                     DOI = "10.5555/3295222", collections = { "COLLAAA1" }, tags = {} } }, items.PARENT01)
             assert.same({ key = "ATTACH01", version = 1201, data = {
                 itemType = "attachment", parentItem = "PARENT01", linkMode = "imported_file", title = "Full Text PDF",
                 contentType = "application/pdf", filename = "Vaswani et al. - 2017 - Attention Is All You Need.pdf",
-                md5 = "5d41402abc4b2a76b9719d911017c592", tags = {} } }, items.ATTACH01)
+                md5 = "5d41402abc4b2a76b9719d911017c592", dateAdded = "2024-01-05T10:00:00Z", tags = {} } }, items.ATTACH01)
+        end)
+
+        it("keeps the title fields of statutes, cases and emails", function()
+            env:library()
+            itemsDelta([==[[{"key":"STATUTE1","version":1301,"data":{"itemType":"statute",
+                "nameOfAct":"Clean Air Act","caseName":"Roe v. Wade","subject":"Re: draft","code":"42 U.S.C."}}]]==])
+
+            assert.is_nil(api.syncAllItems())
+
+            assert.same({ itemType = "statute", nameOfAct = "Clean Air Act", caseName = "Roe v. Wade",
+                subject = "Re: draft" }, reloadedAPI().getItems().STATUTE1.data)
         end)
 
         it("never stores an annotation the server returns", function()
@@ -117,6 +129,116 @@ describe("Zotero item cache sync", function()
             assert.same(collection, reloaded.displayCollection("COLLAAA1"))
             assert.same(search, reloaded.displaySearchResults(""))
             assert.same(notes, reloaded.getItemNotes("ATTACH01"))
+        end)
+    end)
+
+    -- #4: a meta.lua restored without items.json and collections.json kept its library
+    -- version, so every later delta skipped the collections the caches had held.
+    describe("missing caches", function()
+        local function restoreSettingsOnly()
+            api.setLibraryVersion("1300")
+            api.saveModifiedItems()
+            for _, name in ipairs({ "items", "collections" }) do os.remove(api.getCachePath(name)) end
+            api.init(api.zotero_dir)
+        end
+
+        it("refetch the whole library despite a stored version", function()
+            restoreSettingsOnly()
+            env:fullSyncRoutes()
+
+            assert.is_nil(api.syncAllItems())
+
+            assert.truthy(fake:urls()[1]:find("since=0&", 1, true))
+            assert.equal("Papers", reloadedAPI().getCollections().COLLAAA1.data.name)
+            assert.is_not_nil(reloadedAPI().getItems().PARENT01)
+        end)
+
+        it("are written even when empty, so the next sync is a delta again", function()
+            restoreSettingsOnly()
+            emptyDeltaRoutes()
+            assert.is_nil(api.syncAllItems())
+            assert.is_not_nil(cacheInode("items"))
+            assert.is_not_nil(cacheInode("collections"))
+
+            freshServer()
+            emptyDeltaRoutes()
+            assert.is_nil(api.syncAllItems())
+            assert.truthy(fake:urls()[1]:find("since=1300&", 1, true))
+        end)
+    end)
+
+    describe("cache schema upgrade", function()
+        before_each(function()
+            env:library()
+            local items = api.getItems()
+            for _, item in pairs(items) do item.data.dateAdded = nil end
+            api.setItems(items)
+            api.getSettings():delSetting("cache_schema")
+            api.setLibraryVersion("1214")
+            api.saveModifiedItems()
+        end)
+
+        it("backfills unchanged items once and persists the upgrade across restart", function()
+            env:fullSyncRoutes()
+            assert.is_nil(api.syncAllItems())
+            assert.truthy(fake:urls()[1]:find("since=0&", 1, true))
+            api = reloadedAPI()
+            assert.equal("2024-01-05T10:00:00Z", api.getItems().PARENT01.data.dateAdded)
+            assert.equal(1, api.getSettings():readSetting("cache_schema"))
+            freshServer()
+            emptyDeltaRoutes()
+            assert.is_nil(api.syncAllItems())
+            assert.truthy(fake:urls()[1]:find("since=1214&", 1, true))
+        end)
+
+        it("keeps legacy caches and retries after a failed upgrade", function()
+            local items, collections = cacheInode("items"), cacheInode("collections")
+            fake:on("GET", "/items%?", { error = "offline" })
+            assert.is_not_nil(api.syncAllItems())
+            assert.equal(items, cacheInode("items"))
+            assert.equal(collections, cacheInode("collections"))
+            assert.is_nil(reloadedAPI().getSettings():readSetting("cache_schema"))
+            assert.equal("1214", api.getLibraryVersion())
+            freshServer()
+            env:fullSyncRoutes()
+            assert.is_nil(api.syncAllItems())
+            assert.truthy(fake:urls()[1]:find("since=0&", 1, true))
+        end)
+
+        it("does not commit staged items when the collections fetch fails", function()
+            local items, collections = cacheInode("items"), cacheInode("collections")
+            fake:on("GET", "/collections%?", { error = "offline" })
+            env:fullSyncRoutes()
+            assert.is_not_nil(api.syncAllItems())
+            assert.equal(items, cacheInode("items"))
+            assert.equal(collections, cacheInode("collections"))
+            assert.is_nil(reloadedAPI().getSettings():readSetting("cache_schema"))
+            assert.is_nil(api.getItems().PARENT01.data.dateAdded)
+        end)
+
+        it("does not mark a discarded stage as upgraded", function()
+            env:fullSyncRoutes()
+            local stage = api.getSyncStage()
+            local result = api.stageLibrary(false, stage)
+            assert.is_nil(result.error)
+            api.discardSyncStage(stage)
+            assert.is_nil(reloadedAPI().getSettings():readSetting("cache_schema"))
+            assert.is_nil(api.getItems().PARENT01.data.dateAdded)
+        end)
+
+        it("upgrades empty libraries only once and resets the marker on account change", function()
+            emptyDeltaRoutes()
+            assert.is_nil(api.syncAllItems())
+            freshServer()
+            emptyDeltaRoutes()
+            assert.is_nil(api.syncAllItems())
+            assert.truthy(fake:urls()[1]:find("since=1300&", 1, true))
+            assert.is_nil(api.setAccount("group", "99", "key"))
+            assert.is_nil(api.getSettings():readSetting("cache_schema"))
+            freshServer()
+            env:fullSyncRoutes()
+            assert.is_nil(api.syncAllItems())
+            assert.truthy(fake:urls()[1]:find("/groups/99/items?since=0&", 1, true))
         end)
     end)
 

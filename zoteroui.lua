@@ -68,6 +68,14 @@ function UI:isOnline()
     return NetworkMgr:isConnected() and NetworkMgr:isOnline()
 end
 
+--- Run a manual network action once online. Offline, KOReader offers to turn on Wi-Fi
+--- instead of the action failing with a resolver error (#9). Automatic work checks
+--- isOnline and never prompts. Example: UI:whenOnline(function() job:start(false, false) end).
+---@param callback function
+function UI:whenOnline(callback)
+    NetworkMgr:runWhenOnline(callback)
+end
+
 --- Read wall time for automatic sync. Example: UI:now().
 ---@return number
 function UI:now()

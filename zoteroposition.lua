@@ -42,8 +42,7 @@ function Position.getContinueReading(api, library)
     if api.getLocalAttachmentPath(entry.key) ~= entry.path then return end
     local item = api.getItems()[entry.key]
     local parent = api.getItems()[item.data.parentItem]
-    local title = parent and parent.data and parent.data.title or item.data.title
-    if type(title) ~= "string" or not title:find("%S") then title = item.data.filename end
+    local title = api.getItemTitle(parent) or api.getItemTitle(item) or item.data.filename
     return { key = entry.key, path = entry.path, title = title }
 end
 

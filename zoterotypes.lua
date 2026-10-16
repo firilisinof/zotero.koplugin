@@ -10,6 +10,7 @@
 ---@field text string
 ---@field title string|nil Publication or attachment title, falling back to the filename
 ---@field author string|nil
+---@field date_added string|nil UTC dateAdded of the publication, or standalone/orphan attachment
 ---@field year string|nil
 ---@field file_format 'PDF'|'EPUB'|nil
 ---@field downloadable boolean|nil

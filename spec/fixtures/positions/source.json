@@ -1,0 +1,51 @@
+{
+  "chapters": [
+    "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>Position fixture</title></head><body><style>p { margin: 0 }</style><p id=\"intro\">Alpha 😀 beta &amp; gamma.</p><p id=\"nested\">Before <em>nested words</em> after.</p><p id=\"spaces\">A  B\nC</p></body></html>",
+    "<html xmlns=\"http://www.w3.org/1999/xhtml\"><head><title>Appendix</title></head><body><p id=\"appendix\">Another chapter with café and 漢字.</p></body></html>"
+  ],
+  "cases": [
+    {
+      "pointer": "/body/DocFragment[1]/body/p[1]/text().0",
+      "section": 0,
+      "selector": "#intro",
+      "offset": 0
+    },
+    {
+      "pointer": "/body/DocFragment[1]/body/p[1]/text().8",
+      "section": 0,
+      "selector": "#intro",
+      "offset": 9
+    },
+    {
+      "pointer": "/body/DocFragment[1]/body/p[2]/em/text().3",
+      "section": 0,
+      "selector": "#nested em",
+      "offset": 3
+    },
+    {
+      "pointer": "/body/DocFragment[1]/body/p[2]/em/text().10",
+      "section": 0,
+      "selector": "#nested em",
+      "offset": 10
+    },
+    {
+      "pointer": "/body/DocFragment[2]/body/p/text().20",
+      "section": 1,
+      "selector": "#appendix",
+      "offset": 20
+    },
+    {
+      "pointer": "/body/DocFragment[1]/body/p[3]/text().3",
+      "section": 0,
+      "selector": "#spaces",
+      "offset": 4
+    },
+    {
+      "pointer": "/body/DocFragment[1]/body/p[2]/text()[2].3",
+      "section": 0,
+      "selector": "#nested",
+      "child": 2,
+      "offset": 3
+    }
+  ]
+}

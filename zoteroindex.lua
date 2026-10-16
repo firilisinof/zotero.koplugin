@@ -14,6 +14,29 @@ local function nonempty(value)
     if type(value) == "string" and value:find("%S") then return value end
 end
 
+-- A few item types keep their title in a type-specific field (#12): statutes
+-- in nameOfAct, legal cases in caseName and emails in subject.
+local TITLE_FIELDS = { "title", "nameOfAct", "caseName", "subject" }
+
+---@param item ZoteroItem|nil
+---@return string|nil
+local function itemTitle(item)
+    local fields = item and item.data
+    if type(fields) ~= "table" then return nil end
+    for _, name in ipairs(TITLE_FIELDS) do
+        local value = nonempty(fields[name])
+        if value then return value end
+    end
+end
+
+--- Read an item's title, whichever field its item type stores it in. Example: API.getItemTitle(items.PARENT01).
+---@param api ZoteroAPI
+---@param item ZoteroItem|nil
+---@return string|nil
+function Index.getItemTitle(api, item)
+    return itemTitle(item)
+end
+
 ---@param owner ZoteroItem
 ---@return string|nil
 local function publicationYear(owner)
@@ -30,7 +53,7 @@ local function attachmentRow(key, item, parent)
     local owner = parent or item
     return {
         key = key,
-        title = nonempty(parent and parent.data.title) or nonempty(item.data.title) or nonempty(item.data.filename),
+        title = itemTitle(parent) or itemTitle(item) or nonempty(item.data.filename),
         author = nonempty(owner.meta and owner.meta.creatorSummary),
         year = publicationYear(owner),
         file_format = item.data.contentType == "application/pdf" and "PDF" or "EPUB",
@@ -58,10 +81,11 @@ local function matchesTag(item, tag)
 end
 
 ---@param parent ZoteroItem
+---@param fallback string Used when the parent has no title of its own
 ---@return string
-local function nameFor(parent)
+local function nameFor(parent, fallback)
     local author = (parent.meta and parent.meta.creatorSummary) or "Unknown"
-    return author .. " - " .. tostring(parent.data.title)
+    return author .. " - " .. (itemTitle(parent) or fallback)
 end
 
 ---@param lists table<string, ZoteroRow[]>
@@ -81,7 +105,7 @@ end
 local function indexAttachment(index, key, item, parent)
     local row = attachmentRow(key, item, parent)
     -- Keep legacy ordering and ordered author/title/DOI matching independent of layout.
-    local title = parent and nameFor(parent) or nonempty(item.data.title) or row.title or key
+    local title = parent and nameFor(parent, row.title or key) or row.title or key
     local owner = parent or item
     row.text = title
     if parent or not item.data.parentItem then

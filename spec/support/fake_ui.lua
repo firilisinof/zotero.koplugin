@@ -19,7 +19,7 @@ end
 
 function FakeUI.new()
     local runtime = setmetatable({ shown = {}, closed = {}, scheduled = {}, online = true,
-        clock = 1000000, runner = Runner.new(), worker = Worker.new(), repaints = 0, wraps = 0 }, FakeUI)
+        clock = 1000000, wifi_prompts = 0, runner = Runner.new(), worker = Worker.new(), repaints = 0, wraps = 0 }, FakeUI)
     runtime.jobs = runtime.worker.jobs
     for _, kind in ipairs({ "InputDialog", "MultiInputDialog", "RadioButtonWidget", "ButtonDialog",
         "SpinWidget", "InfoMessage", "TextViewer" }) do
@@ -54,6 +54,16 @@ end
 -- InfoMessage closes itself on tap.
 function FakeUI:tapClose(widget) self:close(widget) end
 function FakeUI:isOnline() return self.online end
+
+-- Offline, count KOReader's Wi-Fi prompt and act as if the user connected,
+-- unless a spec sets decline_wifi.
+function FakeUI:whenOnline(callback)
+    if not self.online then
+        self.wifi_prompts = self.wifi_prompts + 1
+        if self.decline_wifi then return end
+    end
+    callback()
+end
 function FakeUI:now() return self.clock end
 function FakeUI:openReader(path, after_open)
     self.opened_path = path

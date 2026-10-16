@@ -356,6 +356,7 @@ describe("Zotero API client", function()
 
         it("asks the server only for changes since the stored version", function()
             env:credentials(USER_ID, API_KEY)
+            env:library()
             ZoteroAPI.setLibraryVersion("1100")
             env:fullSyncRoutes()
 

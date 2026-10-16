@@ -108,7 +108,7 @@ WebDAV is available for personal libraries. Group libraries always download from
 If you do not want to pay Zotero for more storage, you can also store the attachments in a WebDAV folder like [Nextcloud](https://nextcloud.com).
 You can read more about how to set up WebDAV in the [Zotero manual](https://www.zotero.org/support/sync).
 
-The WebDAV URL should point to a directory named zotero. If you use Nextcloud, it will look similar to this: [http://your-instance.tld/remote.php/dav/files/your-username/zotero](). It is probably a good idea to use an app password instead of your user password, so that you can easily revoke it in the security settings should you ever lose your device.
+Enter the same WebDAV URL as in Zotero's sync settings. Like Zotero, the plugin adds the `/zotero` folder when the URL does not already end in it, and assumes `https://` when the URL has no scheme. Spell out `http://` for a server without TLS. If you use Nextcloud, the URL will look similar to this: `https://your-instance.tld/remote.php/dav/files/your-username`. It is probably a good idea to use an app password instead of your user password, so that you can easily revoke it in the security settings should you ever lose your device.
 
 ### Manual configuration
 
@@ -126,7 +126,7 @@ return {
     ["sync_on_startup"] = false,
     ["sync_on_open"] = false, -- sync on browse when older than 24 hours
     ["webdav_enabled"] = false,
-    ["webdav_url"] = "", -- URL to WebDAV zotero directory
+    ["webdav_url"] = "", -- WebDAV URL as entered in Zotero; "/zotero" is added when missing
     ["webdav_user"] = "",
     ["webdav_password"] = "",
 }

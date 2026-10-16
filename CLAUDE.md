@@ -139,6 +139,9 @@ Attachment rows also carry `title`, `author`, `year`, `file_format` and `downloa
   key and Zotero directory are unchanged. Cancellation, failure, timeout, suspend and account changes
   keep the live cache and remove the staged files. Resync fetches from version 0 without clearing
   the cache first. `syncAllItems` runs the same two steps in-process for specs.
+- A sync whose `items.json` or `collections.json` is missing runs as a rebuild from version 0 and
+  writes both caches, even empty ones. A `meta.lua` restored without its caches keeps an old
+  library version, and a delta from it would never fetch what the missing file held (#4).
 - A sync stages a cache only when an entry's version changed, it was deleted or it was
   pruned. An unchanged sync keeps `API.index` and still records the library version and `last_sync`.
 - JSON goes through `Util.encode`/`Util.decode`, backed by rapidjson. It silently drops sparse
@@ -146,6 +149,8 @@ Attachment rows also carry `title`, `author`, `year`, `file_format` and `downloa
   sequences. Highlight journals key PDF `ext` page parts by string for that reason. JSON null
   decodes to the truthy `rapidjson.null`, as LuaJSON's null was truthy too. In-memory copies use
   `util.tableDeepCopy`, which keeps the array or object kind of decoded tables.
+- Statutes, cases and emails keep their title in `nameOfAct`, `caseName` and `subject`. Read titles
+  through `API.getItemTitle`, never `data.title` directly (#12).
 - An attachment whose `parentItem` is not in the library is hidden from collection
   browsing but still findable by search under its own title. This is odd, and specs
   pin it, so change it deliberately rather than by accident.
@@ -163,6 +168,8 @@ Attachment rows also carry `title`, `author`, `year`, `file_format` and `downloa
 
 ## Library and download behavior
 
+- Manual sync, downloads and the WebDAV check run through `runtime:whenOnline`, KOReader's `NetworkMgr:runWhenOnline`, which offers to turn on Wi-Fi instead of failing with a resolver error (#9). Automatic triggers keep checking `isOnline` and never prompt. The fake UI counts `wifi_prompts` and acts as if the user connected unless a spec sets `decline_wifi`.
+- `API.getWebDAVFolder` resolves the entered URL like Zotero desktop: `https://` when there is no scheme, and `/zotero` appended unless the path already ends in it, in any case (#14). Use it rather than the raw `webdav_url`.
 - Missing `library_type` means a personal library. `user_id` remains compatible, and groups use `group_id`. Every Zotero URL uses `API.getLibraryPrefix()`.
 - `cache_library` identifies the metadata cache owner. `legacy_storage_library` preserves the original personal library's unnamespaced storage paths. Other libraries use `storage/users/<id>` or `storage/groups/<id>`.
 - Account changes reset metadata and last-sync time, preserving downloaded documents and sidecars. WebDAV preferences remain saved but are inactive for groups.

@@ -166,8 +166,8 @@ end
 ---@param target string
 ---@return string|nil, string|nil
 function Download.downloadWebDAV(api, key, directory, target)
-    local url = api.getWebDAVUrl()
-    if not url or url == "" then return nil, "WebDAV url not set" end
+    local url = api.getWebDAVFolder()
+    if not url then return nil, "WebDAV url not set" end
     local archive = directory .. "/" .. key .. ".zip"
     local err = api.fetchFile(url .. "/" .. key .. ".zip", api.getWebDAVHeaders(), archive, true)
     if err then return nil, err end

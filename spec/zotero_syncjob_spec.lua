@@ -74,6 +74,21 @@ describe("Zotero background library sync", function()
         api.http = env.http
     end
 
+    -- #9: offline, a manual sync failed with "temporary failure in name resolution".
+    it("offers Wi-Fi before a manual sync and starts nothing when declined", function()
+        runtime.online, runtime.decline_wifi = false, true
+        plugin:onZoteroSyncAction()
+        assert.equals(1, runtime.wifi_prompts)
+        assert.equals(0, #runtime.jobs)
+        assert.is_nil(api.operation)
+
+        runtime.decline_wifi = false
+        plugin:onZoteroSyncAction(true)
+        assert.equals(2, runtime.wifi_prompts)
+        assert.equals(1, #runtime.jobs)
+        assert.equals("sync", api.operation)
+    end)
+
     it("stages in the child and commits in the parent only after the result returns", function()
         env:syncRoutes()
         local before, index = snapshot(), api.getIndex()

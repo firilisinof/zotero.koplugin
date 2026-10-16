@@ -28,10 +28,10 @@ local function webdavEntries(plugin)
     local entries = {
         { text = _("Enable WebDAV storage"), checked_func = api.getWebDAVEnabled, callback = api.toggleWebDAVEnabled },
         entry(plugin, _("Configure WebDAV account"), function() plugin:setWebdavAccount() end),
-        entry(plugin, _("Check WebDAV connection"), function()
+        entry(plugin, _("Check WebDAV connection"), function() plugin.runtime:whenOnline(function()
             local err = api.checkWebDAV()
             plugin.runtime:message(err and (_("WebDAV could not connect: ") .. err) or _("Success, WebDAV works!"), 3)
-        end),
+        end) end),
     }
     for _, item in ipairs(entries) do
         item.enabled_func = function() return api.getLibraryType() == "user" end

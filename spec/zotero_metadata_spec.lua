@@ -89,6 +89,32 @@ describe("Zotero display metadata", function()
         assert.is_false(row.downloaded)
     end)
 
+    -- #12: statutes, cases and emails have no title field, and used to show "Author - nil".
+    it("reads titles that statutes, cases and emails keep under their own field", function()
+        local titles = { nameOfAct = "Clean Air Act", caseName = "Roe v. Wade", subject = "Re: draft" }
+        for field, value in pairs(titles) do
+            local items = api.getItems()
+            items.PARENT01.data.title, items.PARENT01.data[field] = nil, value
+            api.setItems(items)
+            local row = api.displaySearchResults("vaswani")[1]
+            assert.equals(value, row.title)
+            assert.equals("Vaswani et al. - " .. value .. " - 10.5555/3295222", row.text)
+            items.PARENT01.data[field] = nil
+        end
+    end)
+
+    it("names a parent without any title after its attachment instead of nil", function()
+        local items = api.getItems()
+        items.PARENT01.data.title = nil
+        api.setItems(items)
+        for _, row in ipairs(api.displayCollection("COLLAAA1")) do
+            if row.key == "ATTACH01" then assert.equals("Vaswani et al. - Full Text PDF", row.text) end
+        end
+        items.ATTACH01.data.title, items.ATTACH01.data.filename = nil, nil
+        api.setItems(items)
+        assert.equals("Vaswani et al. - ATTACH01 - 10.5555/3295222", api.displaySearchResults("vaswani")[1].text)
+    end)
+
     it("preserves author-first sorting, key ties and ordered search matching", function()
         env:attachment("ATTACH03", "PARENT01", "duplicate.pdf")
         local items = api.getItems()

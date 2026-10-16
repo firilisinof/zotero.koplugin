@@ -164,6 +164,14 @@ describe("Zotero everyday navigation", function()
         assert.is_true(fields.subtitle.overlap_offset[2] + fields.subtitle:getSize().h <= row.dimen.h)
     end)
 
+    it("titles Continue reading from a statute's name of act", function()
+        local path = env:file("ATTACH01")
+        local parent = api.getItems().PARENT01
+        parent.data.title, parent.data.nameOfAct = nil, "Clean Air Act"
+        api.saveContinueReading("users/4242", "ATTACH01", path)
+        assert.equals("Clean Air Act", api.getContinueReading("users/4242").title)
+    end)
+
     it("does not remember failed opens or download cancellations", function()
         runtime.runner.cancel_on = 1
         browser:onMenuSelect({ key = "ATTACH01" })

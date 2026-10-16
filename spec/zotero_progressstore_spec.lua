@@ -3,7 +3,7 @@ require("commonrequire")
 package.path = "plugins/zotero.koplugin/?.lua;" .. package.path
 local Env = require("spec.support.zotero_env")
 local FakeStoreDisk = require("spec.support.fake_store_disk")
-local Store = require("zoteroprogressstore")
+local Store = require("src.zoteroprogressstore")
 
 describe("Zotero outbox store", function()
     local root, disk, store, identity, other
@@ -96,7 +96,7 @@ describe("Zotero outbox store", function()
     end)
 
     it("does not cache an invalid file", function()
-        assert.is_nil(require("zoteroutil").write(root .. "/reading-progress.json", "invalid"))
+        assert.is_nil(require("src.zoteroutil").write(root .. "/reading-progress.json", "invalid"))
         assert.has_error(function() store:get(identity) end)
         assert.has_error(function() store:get(identity) end)
         assert.equals(2, disk.reads)

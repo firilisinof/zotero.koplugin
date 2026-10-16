@@ -4,7 +4,7 @@ local Fixtures = require("spec.support.fixtures")
 local Env = {}
 Env.__index = Env
 local serial = 0
-local Util = require("zoteroutil")
+local Util = require("src.zoteroutil")
 
 -- A directory per test keeps real file I/O independent. The test runner removes
 -- KO_HOME before each session, so no cleanup can touch a real library.
@@ -17,7 +17,7 @@ end
 
 function Env.new()
     -- API is a singleton module. Reload it so module state cannot leak between tests.
-    local api = package.reload("zoteroapi")
+    local api = package.reload("src.zoteroapi")
     local root = Env.newDirectory()
     api.init(root)
     api.http = FakeHttp.new()

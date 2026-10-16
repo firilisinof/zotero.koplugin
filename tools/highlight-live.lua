@@ -9,14 +9,14 @@ require("document/canvascontext"):init(Device)
 require("ui/bidi").setup()
 local plugin_root = assert(os.getenv("ZOTERO_PLUGIN_ROOT"))
 package.path = plugin_root .. "/?.lua;" .. package.path
-local api = require("zoteroapi")
+local api = require("src.zoteroapi")
 local manifest = api.util.decode(assert(api.util.read(assert(os.getenv("ZOTERO_HIGHLIGHT_MANIFEST")))))
 assert(manifest.test_id and not manifest.cleaned, "Expected active dedicated test manifest")
 local secret = require("luasettings"):open(assert(os.getenv("ZOTERO_TEST_CREDENTIALS"))):readSetting("api_key")
 api.util.mkdir(root .. "/zotero"); api.init(root .. "/zotero")
 api.setAccount("user", manifest.owner, secret)
-local Remote = require("zoterohighlightremote")
-local Identity = require("zoteroprogressidentity")
+local Remote = require("src.zoterohighlightremote")
+local Identity = require("src.zoteroprogressidentity")
 local auth = Remote.authorize(api, secret, "users/" .. manifest.owner)
 auth.key_hash = Identity.keyHash(secret)
 api.settings:saveSetting("highlight_authorization", auth)
@@ -38,7 +38,7 @@ for _, fixture in ipairs(manifest.items) do
     fixture.local_path = path
 end
 local UIManager = require("ui/uimanager")
-local Runtime = require("zoteroui")
+local Runtime = require("src.zoteroui")
 local runtime = setmetatable({ online = true }, { __index = Runtime })
 function runtime:isOnline() return self.online end
 local Plugin = dofile(plugin_root .. "/main.lua")

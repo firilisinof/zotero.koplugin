@@ -9,7 +9,7 @@ require("document/canvascontext"):init(Device)
 require("ui/bidi").setup()
 local plugin = assert(os.getenv("ZOTERO_PLUGIN_ROOT"))
 package.path = plugin .. "/?.lua;" .. package.path
-local Util = require("zoteroutil")
+local Util = require("src.zoteroutil")
 local fixture = plugin .. "/spec/fixtures/positions/"
 local source = Util.decode(assert(Util.read(fixture .. "source.json")))
 local name = os.getenv("ZOTERO_ORACLE_FIXTURE") or "sample.epub"
@@ -18,7 +18,7 @@ local version = tonumber(os.getenv("ZOTERO_DOM_VERSION")) or doc:getLatestDomVer
 doc:requestDomVersion(version)
 assert(doc:loadDocument())
 doc:render()
-local codec = require("zoteroepub").new(doc, version)
+local codec = require("src.zoteroepub").new(doc, version)
 for _, case in ipairs(source.cases) do
     case.spine = case.section + 1
     if name == "mixed.epub" and case.section == 1 then
@@ -30,7 +30,7 @@ for _, case in ipairs(source.cases) do
     case.cfi, case.text = cfi, doc:getTextFromXPointer(case.pointer)
 end
 source.ranges = {}
-local Range = require("zoterocfirange")
+local Range = require("src.zoterocfirange")
 for _, endpoints in ipairs({ {3,4}, {2,7}, {1,2} }) do
     local first, last = source.cases[endpoints[1]], source.cases[endpoints[2]]
     source.ranges[#source.ranges + 1] = {

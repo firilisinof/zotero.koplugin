@@ -39,7 +39,7 @@ local function insertCalibration(page)
     quad[0].lr.x, quad[0].lr.y = 100, 100
     page:addMarkupAnnotation(quad, 1, 8)
     local annotation = assert(page:getMarkupAnnotation(quad, 1), "Missing scratch calibration annotation")
-    local marker = "ZoteroCalibration" .. require("zoterohighlightutil").key() .. require("zoterohighlightutil").key()
+    local marker = "ZoteroCalibration" .. require("src.zoterohighlightutil").key() .. require("src.zoterohighlightutil").key()
     page:updateMarkupAnnotation(annotation, marker)
     return marker
 end

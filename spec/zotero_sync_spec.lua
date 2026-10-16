@@ -14,7 +14,7 @@ describe("Zotero item cache sync", function()
     end)
 
     local function reloadedAPI()
-        local reloaded = package.reload("zoteroapi")
+        local reloaded = package.reload("src.zoteroapi")
         reloaded.init(api.zotero_dir)
         return reloaded
     end

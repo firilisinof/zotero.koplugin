@@ -1,9 +1,9 @@
-local Store = require("zoteroprogressstore")
-local Identity = require("zoteroprogressidentity")
-local Helpers = require("zoterohighlightutil")
-local Local = require("zoterohighlightlocal")
-local Remote = require("zoterohighlightremote")
-local Exchange = require("zoterohighlightexchange")
+local Store = require("src.zoteroprogressstore")
+local Identity = require("src.zoteroprogressidentity")
+local Helpers = require("src.zoterohighlightutil")
+local Local = require("src.zoterohighlightlocal")
+local Remote = require("src.zoterohighlightremote")
+local Exchange = require("src.zoterohighlightexchange")
 local Highlights = {}
 Highlights.__index = Highlights
 
@@ -99,7 +99,7 @@ end
 function Highlights:attach(reader, context)
     self.reader, self.origin, self.identity = reader, context, nil
     if not context then return end
-    require("zoterohighlightpdfview").bind(reader)
+    require("src.zoterohighlightpdfview").bind(reader)
     reader.zotero_highlights_rebind = function(reopened) self:safe("attach", reopened, context) end
     if not self:authorized() or context.library ~= self.api.getLocalLibraryPrefix() then return end
     local identity, reason = Identity.capture(self.api, context.key, context.path, "highlight_authorization")
@@ -247,7 +247,7 @@ end
 function Highlights:close(reader)
     if reader ~= self.reader then return end
     self:checkpoint()
-    require("zoterohighlightpdfview").unbind(reader)
+    require("src.zoterohighlightpdfview").unbind(reader)
     if self.push_task then self.runtime:unschedule(self.push_task) end
     self.reader, self.identity, self.origin = nil, nil, nil
     self.runtime:later(0.3, function() self:safe("sync", false) end)

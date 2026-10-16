@@ -2,8 +2,8 @@ require("commonrequire")
 package.path = "plugins/zotero.koplugin/?.lua;" .. package.path
 local Env = require("spec.support.zotero_env")
 local FakeUI = require("spec.support.fake_ui")
-local Browser = require("zoterobrowser")
-local SyncJob = require("zoterosyncjob")
+local Browser = require("src.zoterobrowser")
+local SyncJob = require("src.zoterosyncjob")
 local Plugin = dofile("plugins/zotero.koplugin/main.lua")
 
 describe("Zotero feature UI", function()

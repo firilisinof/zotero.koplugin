@@ -1,7 +1,7 @@
 local Menu = require("ui/widget/menu")
-local Row = require("zoterorow")
+local Row = require("src.zoterorow")
 local Size = require("ui/size")
-local Header = require("zoteroheader")
+local Header = require("src.zoteroheader")
 local Screen = require("device").screen
 local _ = require("gettext")
 

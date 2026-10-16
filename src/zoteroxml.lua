@@ -1,5 +1,5 @@
 -- SLAXML 756ffad03d2a06271170a0ba82d6eac02cc2a5ca is isolated here.
-local SAX = require("zoteroslaxml")
+local SAX = require("src.zoteroslaxml")
 local XML = {}
 
 --- Parse mixed content without executing declarations. Example: XML.parse(xhtml).

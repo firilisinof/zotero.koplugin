@@ -3,7 +3,7 @@ require("commonrequire")
 package.path = "plugins/zotero.koplugin/?.lua;" .. package.path
 local Env = require("spec.support.zotero_env")
 local Fixtures = require("spec.support.fixtures")
-local Util = require("zoteroutil")
+local Util = require("src.zoteroutil")
 local lfs = require("libs/libkoreader-lfs")
 local USER_ID, API_KEY = "4242", "s3cret"
 

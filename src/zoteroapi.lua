@@ -1,11 +1,11 @@
-local Util = require("zoteroutil")
+local Util = require("src.zoteroutil")
 
 ---@type ZoteroAPI
 local API = {
     -- Specs replace only the HTTP transport. Files and archives remain real.
     http = require("socket.http"),
     util = Util,
-    archive = require("zoteroarchive"),
+    archive = require("src.zoteroarchive"),
 }
 
 ---@param module table<string, function>
@@ -15,12 +15,12 @@ local function bind(module)
     end
 end
 
-bind(require("zoterosettings"))
-bind(require("zoteroposition"))
-bind(require("zoterotransport"))
-bind(require("zoteroindex"))
-bind(require("zoterodownload"))
-bind(require("zoterosync"))
+bind(require("src.zoterosettings"))
+bind(require("src.zoteroposition"))
+bind(require("src.zoterotransport"))
+bind(require("src.zoteroindex"))
+bind(require("src.zoterodownload"))
+bind(require("src.zoterosync"))
 
 --- Open the local library and settings. Example: API.init("./zotero").
 ---@param zotero_dir string

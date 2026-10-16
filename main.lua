@@ -3,16 +3,16 @@ local Dispatcher = require("dispatcher")
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local FrameContainer = require("ui/widget/container/framecontainer")
 local DataStorage = require("datastorage")
-local SyncJob = require("zoterosyncjob")
+local SyncJob = require("src.zoterosyncjob")
 local _ = require("gettext")
 
 local Plugin = WidgetContainer:new{
     name = "zotero", is_doc_only = false,
-    api = require("zoteroapi"), runtime = require("zoteroui"),
+    api = require("src.zoteroapi"), runtime = require("src.zoteroui"),
 }
 
-for name, method in pairs(require("zoterodialogs")) do Plugin[name] = method end
-for name, method in pairs(require("zoteromenu")) do Plugin[name] = method end
+for name, method in pairs(require("src.zoterodialogs")) do Plugin[name] = method end
+for name, method in pairs(require("src.zoteromenu")) do Plugin[name] = method end
 
 --- Register the existing dispatcher actions. Example: plugin:onDispatcherRegisterActions().
 function Plugin:onDispatcherRegisterActions()
@@ -65,9 +65,9 @@ function Plugin:initAPI()
     self.zotero_dir_path = DataStorage:getDataDir() .. "/zotero"
     self.api.util.mkdir(self.zotero_dir_path)
     if self.api.zotero_dir ~= self.zotero_dir_path then self.api.init(self.zotero_dir_path) end
-    self.api.progress = self.api.progress or require("zoteroprogress").new(self.api, self.runtime)
+    self.api.progress = self.api.progress or require("src.zoteroprogress").new(self.api, self.runtime)
     self.progress = self.api.progress
-    self.api.highlights = self.api.highlights or require("zoterohighlights").new(self.api, self.runtime)
+    self.api.highlights = self.api.highlights or require("src.zoterohighlights").new(self.api, self.runtime)
     self.highlights = self.api.highlights
     self.api.sync_job = self.api.sync_job or SyncJob.new(self.api, self.runtime)
     self:attachSyncJob(self.api.sync_job)
@@ -87,7 +87,7 @@ end
 
 --- Wire a browser to the shared API and KOReader runtime. Example: plugin:buildBrowser().
 function Plugin:buildBrowser()
-    local browser = require("zoterobrowser"):new{
+    local browser = require("src.zoterobrowser"):new{
         api = self.api, runtime = self.runtime, items_per_page = self:getItemsPerPage(),
         close_callback = function() self.runtime:close(self.zotero_dialog) end,
     }

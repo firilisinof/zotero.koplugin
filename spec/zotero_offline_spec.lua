@@ -2,7 +2,7 @@ require("commonrequire")
 package.path = "plugins/zotero.koplugin/?.lua;" .. package.path
 local Env = require("spec.support.zotero_env")
 local FakeUI = require("spec.support.fake_ui")
-local Browser = require("zoterobrowser")
+local Browser = require("src.zoterobrowser")
 local DocSettings = require("docsettings")
 
 describe("Zotero local reading", function()

@@ -1,10 +1,10 @@
 require("commonrequire")
 package.path = "plugins/zotero.koplugin/?.lua;" .. package.path
 local Fixtures = require("spec.support.fixtures")
-local EPUB = require("zoteroepub")
-local Unicode = require("zoterounicode")
-local XML = require("zoteroxml")
-local CFI = require("zoterocfi")
+local EPUB = require("src.zoteroepub")
+local Unicode = require("src.zoterounicode")
+local XML = require("src.zoteroxml")
+local CFI = require("src.zoterocfi")
 local Registry = require("document/documentregistry")
 
 describe("Zotero EPUB location conversion", function()

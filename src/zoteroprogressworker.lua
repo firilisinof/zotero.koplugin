@@ -2,7 +2,7 @@
 -- Position sharing, highlight sync and library sync all run their network work here.
 local ffiutil = require("ffi/util")
 local UIManager = require("ui/uimanager")
-local Util = require("zoteroutil")
+local Util = require("src.zoteroutil")
 local ffi = require("ffi")
 local Worker = {}
 

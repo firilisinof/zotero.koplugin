@@ -1,7 +1,7 @@
-local Store = require("zoteroprogressstore")
-local Identity = require("zoteroprogressidentity")
-local Remote = require("zoteroprogressremote")
-local Codec = require("zoteroprogresscodec")
+local Store = require("src.zoteroprogressstore")
+local Identity = require("src.zoteroprogressidentity")
+local Remote = require("src.zoteroprogressremote")
+local Codec = require("src.zoteroprogresscodec")
 local Progress = {}
 Progress.__index = Progress
 

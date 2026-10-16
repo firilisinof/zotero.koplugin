@@ -19,7 +19,7 @@ Files still live under their original parent directory, preserving KOReader side
 
 Direct transfers and WebDAV extraction write staging files before replacing the attachment. Failed transfers or extraction retain the previous file. A cancelled worker may leave a staging file or archive, which the next attempt overwrites. Metadata resets never remove downloads or sidecars.
 
-The API facade remains `zoteroapi.lua`, with settings, indexing, transport, downloading and sync in focused modules. The browser and settings dialogs are separate from plugin lifecycle code. The HTTP transport remains injectable as `API.http`.
+The API facade remains `src/zoteroapi.lua`, with settings, indexing, transport, downloading and sync in focused modules. The browser and settings dialogs are separate from plugin lifecycle code. The HTTP transport remains injectable as `API.http`.
 
 ## Verification
 

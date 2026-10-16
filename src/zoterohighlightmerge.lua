@@ -1,4 +1,4 @@
-local Helpers = require("zoterohighlightutil")
+local Helpers = require("src.zoterohighlightutil")
 local util = require("util")
 local Merge = {}
 

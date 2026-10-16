@@ -2,9 +2,9 @@
 require("commonrequire")
 package.path = "plugins/zotero.koplugin/?.lua;" .. package.path
 local Env = require("spec.support.zotero_env")
-local Store = require("zoteroprogressstore")
-local Helpers = require("zoterohighlightutil")
-local Util = require("zoteroutil")
+local Store = require("src.zoteroprogressstore")
+local Helpers = require("src.zoterohighlightutil")
+local Util = require("src.zoteroutil")
 local LuaJSON = require("json")
 local rapidjson = require("rapidjson")
 local util = require("util")
@@ -53,7 +53,7 @@ describe("Zotero JSON files", function()
             writeLegacy(name, LuaJSON.decode(Util.read(api.zotero_dir .. "/" .. name)))
         end
 
-        local reloaded = package.reload("zoteroapi")
+        local reloaded = package.reload("src.zoteroapi")
         reloaded.init(api.zotero_dir)
 
         assert.same(collections, reloaded.displayCollection(nil))

@@ -12,13 +12,15 @@ trap 'exit 1' HUP INT TERM
 
 # Select runtime files explicitly so fixtures, credentials and tooling stay out.
 mkdir "$package_stage/zotero.koplugin"
+mkdir "$package_stage/zotero.koplugin/src"
+cp "$plugin_root"/src/*.lua "$package_stage/zotero.koplugin/src/"
 cp "$plugin_root"/*.lua "$plugin_root"/LICENSE* "$package_stage/zotero.koplugin/"
 
 # A fresh archive cannot retain removed modules. Stage beside the destination
 # so a failed build leaves the previous package intact until the final rename.
 (
     cd "$package_stage"
-    zip -q -X zotero.koplugin.zip zotero.koplugin/*
+    zip -q -r -X zotero.koplugin.zip zotero.koplugin/*
 )
 mv "$package_stage/zotero.koplugin.zip" "$package_output/zotero.koplugin.zip"
 printf 'Created %s\n' "$package_output/zotero.koplugin.zip"

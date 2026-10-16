@@ -23,7 +23,10 @@ ifneq ($(GNU_PATH),)
 export PATH := $(GNU_PATH):$(PATH)
 endif
 
-.PHONY: help setup link unlink build run test package
+.PHONY: help setup link unlink build run test test-unit check package
+
+LUA ?= luajit
+BUSTED ?= busted
 
 help:
 	@echo "make setup   Install prerequisites, clone and build KOReader, link this plugin"
@@ -31,7 +34,9 @@ help:
 	@echo "make unlink  Remove those links"
 	@echo "make build   Rebuild the KOReader emulator"
 	@echo "make run     Launch the emulator with the plugin loaded"
-	@echo "make test    Run the plugin specs"
+	@echo "make test    Run the KOReader integration specs"
+	@echo "make test-unit Run standalone unit specs (LuaJIT and busted)"
+	@echo "make check   Check Lua syntax, unit tests and package contents"
 	@echo "make package Create dist/zotero.koplugin.zip for installation"
 	@echo ""
 	@echo "KOREADER_SRC = $(KOREADER_SRC)"
@@ -73,3 +78,11 @@ check-koreader:
 		echo "or point KOREADER_SRC at an existing checkout."; \
 		exit 1; \
 	}
+
+# Standalone checks require no emulator or credentials.
+test-unit:
+	$(BUSTED) --lua=$(LUA) spec/unit
+
+check: test-unit package
+	$(LUA) tools/check-syntax.lua main.lua _meta.lua $$(find src spec tools -name '*.lua')
+	python3 tools/check-package.py

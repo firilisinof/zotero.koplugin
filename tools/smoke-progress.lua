@@ -11,7 +11,7 @@ local plugin_root = os.getenv("ZOTERO_PLUGIN_ROOT") or "plugins/zotero.koplugin"
 package.path = plugin_root .. "/?.lua;plugins/zotero.koplugin/?.lua;" .. package.path
 package.reload = function(name) package.loaded[name] = nil return require(name) end
 local UIManager = require("ui/uimanager")
-local Runtime = require("zoteroui")
+local Runtime = require("src.zoteroui")
 local runtime = setmetatable({ online = true }, { __index = Runtime })
 function runtime:isOnline() return self.online end
 local env = require("spec.support.zotero_env").new()
@@ -21,7 +21,7 @@ assert(plugin:ensureBrowser())
 local api, progress = plugin.api, plugin.api.progress
 env:credentials(); env:library()
 local fixture = "plugins/zotero.koplugin/spec/fixtures/positions/"
-local Identity = require("zoteroprogressidentity")
+local Identity = require("src.zoteroprogressidentity")
 local Server = require("spec.support.fake_progress_server")
 local server = Server.new(); api.http = server
 local DocSettings = require("docsettings")

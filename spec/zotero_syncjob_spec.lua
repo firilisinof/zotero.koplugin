@@ -4,8 +4,8 @@ package.path = "plugins/zotero.koplugin/?.lua;" .. package.path
 local Env = require("spec.support.zotero_env")
 local FakeHttp = require("spec.support.fake_http")
 local FakeUI = require("spec.support.fake_ui")
-local Browser = require("zoterobrowser")
-local SyncJob = require("zoterosyncjob")
+local Browser = require("src.zoterobrowser")
+local SyncJob = require("src.zoterosyncjob")
 local Plugin = dofile("plugins/zotero.koplugin/main.lua")
 local lfs = require("libs/libkoreader-lfs")
 

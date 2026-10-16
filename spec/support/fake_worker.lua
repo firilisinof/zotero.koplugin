@@ -1,5 +1,5 @@
 -- Named fake for zoteroprogressworker. Jobs wait until a spec runs, expires or cancels them.
-local Util = require("zoteroutil")
+local Util = require("src.zoteroutil")
 local Worker = {}
 Worker.__index = Worker
 

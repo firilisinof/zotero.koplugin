@@ -298,9 +298,16 @@ function Browser:showNotes(key)
     })
 end
 
+--- Download once online, offering Wi-Fi first when offline (#9). Example: browser:startDownload(task, "ATTACH01").
 ---@param task function
 ---@param key string|nil
 function Browser:startDownload(task, key)
+    self.runtime:whenOnline(function() self:runDownload(task, key) end)
+end
+
+---@param task function
+---@param key string|nil
+function Browser:runDownload(task, key)
     if not self.api.beginOperation("download") then
         self.runtime:message(_("A Zotero operation is already running."), 3)
         return

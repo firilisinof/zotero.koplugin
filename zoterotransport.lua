@@ -64,6 +64,23 @@ function Transport.getWebDAVHeaders(api)
     return { Authorization = "Basic " .. sha2.bin_to_base64(credentials) }
 end
 
+--- Resolve the folder Zotero desktop syncs to. Zotero appends "zotero" to the URL its
+--- users enter, so accept that same URL, with or without a scheme (#14).
+--- Example: API.getWebDAVFolder() with "dav.example.org/files" gives "https://dav.example.org/files/zotero".
+---@param api ZoteroAPI
+---@return string|nil
+function Transport.getWebDAVFolder(api)
+    local url = api.getWebDAVUrl()
+    url = type(url) == "string" and url:match("^%s*(.-)%s*$") or ""
+    if url == "" then return nil end
+    if not url:find("^%a[%w+.-]*://") then url = "https://" .. url end
+    local origin, path = url:match("^(%a[%w+.-]*://[^/]*)(.*)$")
+    path = path:gsub("/+$", "")
+    -- Case-insensitive, so a folder that already worked is never nested again.
+    if not path:lower():find("/zotero$") then path = path .. "/zotero" end
+    return origin .. path
+end
+
 ---@param api ZoteroAPI
 ---@param url string
 ---@param headers table<string, string>
@@ -157,8 +174,8 @@ end
 ---@return string|nil
 function Transport.checkWebDAV(api)
     if api.getLibraryType() == "group" then return "Group libraries use Zotero file storage." end
-    local url = api.getWebDAVUrl()
-    if not url or url == "" then return "No WebDAV URL provided" end
+    local url = api.getWebDAVFolder()
+    if not url then return "No WebDAV URL provided" end
     local result, code = request(api, { url = url, method = "PROPFIND", headers = api.getWebDAVHeaders() })
     return webdavError(result, code)
 end

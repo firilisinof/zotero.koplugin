@@ -16,8 +16,10 @@ end
 -- out of items.json, which low-end readers parse whole on every start.
 local CACHED_FIELDS = {
     meta = { creatorSummary = true, parsedDate = true },
-    data = { itemType = true, title = true, parentItem = true, collections = true, tags = true, DOI = true,
-        date = true, contentType = true, linkMode = true, filename = true, md5 = true, note = true, deleted = true },
+    -- nameOfAct, caseName and subject hold the title of statutes, cases and emails.
+    data = { itemType = true, title = true, nameOfAct = true, caseName = true, subject = true, parentItem = true,
+        collections = true, tags = true, DOI = true, date = true, contentType = true, linkMode = true,
+        filename = true, md5 = true, note = true, deleted = true },
 }
 
 ---@param fields table|nil
@@ -181,6 +183,18 @@ function Sync.discardSyncStage(api, stage)
     for _, path in pairs(stage) do api.util.discard(path) end
 end
 
+-- A meta.lua restored without its caches still holds the old library version, and
+-- a delta from that version never fetches what the missing file held (#4).
+-- Rebuilding writes every cache, even an empty one, so this happens only once.
+---@param api ZoteroAPI
+---@return boolean
+local function missingCache(api)
+    for _, source in ipairs(SOURCES) do
+        if not api.util.isFile(api.getCachePath(source.endpoint)) then return true end
+    end
+    return false
+end
+
 --- Fetch deltas into staged files, leaving live caches and settings untouched. Runs in the
 --- sync child, so only the small result crosses the pipe. Example: API.stageLibrary(false, stage).
 ---@param api ZoteroAPI
@@ -190,6 +204,7 @@ end
 function Sync.stageLibrary(api, rebuild, stage)
     local err = api.ensureKeyAndID()
     if err then return { error = err } end
+    rebuild = rebuild or missingCache(api)
     local since, result = rebuild and 0 or api.getLibraryVersion(), {}
     for _, source in ipairs(SOURCES) do
         local staged, stage_error = stageDelta(api, source, since, rebuild, stage[source.endpoint])

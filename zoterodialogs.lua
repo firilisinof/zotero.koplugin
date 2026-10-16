@@ -63,7 +63,7 @@ end
 function Dialogs:setWebdavAccount()
     local api = self.api
     editFields(self, _("Edit WebDAV credentials"), {
-        { text = api.getWebDAVUrl() or "", hint = _("URL") },
+        { text = api.getWebDAVUrl() or "", hint = _("URL, as in Zotero's sync settings") },
         { text = api.getWebDAVUser() or "", hint = _("Username") },
         { text = api.getWebDAVPassword() or "", hint = _("Password"), text_type = "password" },
     }, function(values)

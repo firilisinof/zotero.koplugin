@@ -76,6 +76,17 @@ describe("Zotero item cache sync", function()
                 md5 = "5d41402abc4b2a76b9719d911017c592", tags = {} } }, items.ATTACH01)
         end)
 
+        it("keeps the title fields of statutes, cases and emails", function()
+            env:library()
+            itemsDelta([==[[{"key":"STATUTE1","version":1301,"data":{"itemType":"statute",
+                "nameOfAct":"Clean Air Act","caseName":"Roe v. Wade","subject":"Re: draft","code":"42 U.S.C."}}]]==])
+
+            assert.is_nil(api.syncAllItems())
+
+            assert.same({ itemType = "statute", nameOfAct = "Clean Air Act", caseName = "Roe v. Wade",
+                subject = "Re: draft" }, reloadedAPI().getItems().STATUTE1.data)
+        end)
+
         it("never stores an annotation the server returns", function()
             fake:on("GET", "/items%?", { headers = { ["total-results"] = "1" }, body = [==[
                 [{"key":"ANNOT001","version":1210,
@@ -117,6 +128,41 @@ describe("Zotero item cache sync", function()
             assert.same(collection, reloaded.displayCollection("COLLAAA1"))
             assert.same(search, reloaded.displaySearchResults(""))
             assert.same(notes, reloaded.getItemNotes("ATTACH01"))
+        end)
+    end)
+
+    -- #4: a meta.lua restored without items.json and collections.json kept its library
+    -- version, so every later delta skipped the collections the caches had held.
+    describe("missing caches", function()
+        local function restoreSettingsOnly()
+            api.setLibraryVersion("1300")
+            api.saveModifiedItems()
+            for _, name in ipairs({ "items", "collections" }) do os.remove(api.getCachePath(name)) end
+            api.init(api.zotero_dir)
+        end
+
+        it("refetch the whole library despite a stored version", function()
+            restoreSettingsOnly()
+            env:fullSyncRoutes()
+
+            assert.is_nil(api.syncAllItems())
+
+            assert.truthy(fake:urls()[1]:find("since=0&", 1, true))
+            assert.equal("Papers", reloadedAPI().getCollections().COLLAAA1.data.name)
+            assert.is_not_nil(reloadedAPI().getItems().PARENT01)
+        end)
+
+        it("are written even when empty, so the next sync is a delta again", function()
+            restoreSettingsOnly()
+            emptyDeltaRoutes()
+            assert.is_nil(api.syncAllItems())
+            assert.is_not_nil(cacheInode("items"))
+            assert.is_not_nil(cacheInode("collections"))
+
+            freshServer()
+            emptyDeltaRoutes()
+            assert.is_nil(api.syncAllItems())
+            assert.truthy(fake:urls()[1]:find("since=1300&", 1, true))
         end)
     end)
 

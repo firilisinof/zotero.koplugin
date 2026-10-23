@@ -100,6 +100,7 @@ describe("Zotero consistent metadata snapshots", function()
         assert.equal("Stable", api.getItems().NEWITEM1.data.title)
         assert.equal("1301", api.getLibraryVersion())
         assert.equal(4, http:callCount("/items%?"))
+        assert.same({ 10 }, env.pauses)
         for _, url in ipairs(http:urls()) do assert.truthy(url:find("since=1200", 1, true)) end
     end)
 
@@ -108,6 +109,7 @@ describe("Zotero consistent metadata snapshots", function()
         http:on("GET", "/items%?.*start=100$", page("1301", "[]", 101))
         assert.is_not_nil(api.syncAllItems())
         assert.equal(6, http:callCount())
+        assert.same({ 10, 30 }, env.pauses)
         assertPreserved()
     end)
 

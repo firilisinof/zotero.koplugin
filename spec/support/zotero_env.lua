@@ -21,7 +21,10 @@ function Env.new()
     local root = Env.newDirectory()
     api.init(root)
     api.http = FakeHttp.new()
-    return setmetatable({ api = api, http = api.http, root = root }, Env)
+    local env = setmetatable({ api = api, http = api.http, root = root, pauses = {} }, Env)
+    -- Record sync retry pauses instead of sleeping through them.
+    api.pause = function(seconds) table.insert(env.pauses, seconds) end
+    return env
 end
 
 function Env:credentials(identifier, key)

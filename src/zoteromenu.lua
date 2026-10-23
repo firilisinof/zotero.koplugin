@@ -21,6 +21,26 @@ local function toggle(plugin, title, getter, setter)
     end }
 end
 
+-- Enabling sharing waits on a background permission check, so the entry says so
+-- and redraws when the check ends instead of looking unresponsive (#25).
+---@param plugin table
+---@param name string The api field holding the coordinator: "progress" or "highlights"
+---@param title string
+---@param checking_title string
+---@return table
+local function sharingToggle(plugin, name, title, checking_title)
+    return {
+        text_func = function()
+            local coordinator = plugin.api[name]
+            return coordinator and coordinator:authorizing() and checking_title or title
+        end,
+        checked_func = function() return plugin.api[name] and plugin.api[name]:enabled() or false end,
+        callback = function(touchmenu)
+            plugin.api[name]:safe("toggle", function() plugin.runtime:refreshMenu(touchmenu) end)
+        end,
+    }
+end
+
 ---@param plugin table
 ---@return table[]
 local function webdavEntries(plugin)
@@ -71,12 +91,9 @@ local function settingsEntries(plugin)
     }
     for _, item in ipairs(webdavEntries(plugin)) do table.insert(entries, item) end
     table.insert(entries, { text = _("Sort items"), sub_item_table = sortEntries(plugin) })
-    table.insert(entries, { text = _("Share reading position"),
-        checked_func = function() return plugin.api.progress and plugin.api.progress:enabled() or false end,
-        callback = function() plugin.api.progress:safe("toggle") end })
-    table.insert(entries, { text = _("Sync highlights"),
-        checked_func = function() return plugin.api.highlights and plugin.api.highlights:enabled() or false end,
-        callback = function() plugin.api.highlights:safe("toggle") end })
+    table.insert(entries, sharingToggle(plugin, "progress", _("Share reading position"),
+        _("Share reading position (checking…)")))
+    table.insert(entries, sharingToggle(plugin, "highlights", _("Sync highlights"), _("Sync highlights (checking…)")))
     return entries
 end
 

@@ -1,6 +1,7 @@
 -- Library sync off the UI thread. A non-modal child fetches deltas into staged
 -- files and returns only versions and changed flags. The parent alone commits.
 local _ = require("gettext")
+local ErrorText = require("src.zoteroerrortext")
 local SyncJob = {}
 SyncJob.__index = SyncJob
 
@@ -55,7 +56,7 @@ function SyncJob:start(rebuild, automatic)
     local run = { automatic = automatic, owner = self:owner(), stage = self.api.getSyncStage() }
     self.run = run
     local ok, err = pcall(self.launch, self, run, rebuild)
-    if not ok then self:complete(run, { error = tostring(err) }) end
+    if not ok then self:complete(run, { error = ErrorText.strip(err) }) end
     return true
 end
 
@@ -71,7 +72,7 @@ function SyncJob:launch(run, rebuild)
     local api, stage = self.api, run.stage
     run.cancel = self.runtime:background(function()
         local ok, result = pcall(api.stageLibrary, rebuild, stage)
-        return ok and result or { error = tostring(result) }
+        return ok and result or { error = ErrorText.strip(result) }
     end, function(result) self:complete(run, result) end, TIME_LIMIT)
 end
 
@@ -104,7 +105,7 @@ function SyncJob:complete(run, result)
     if self.run ~= run then return end
     self.run = nil
     local ok, committed, err = pcall(self.settle, self, run, result)
-    if not ok then committed, err = false, tostring(committed) end
+    if not ok then committed, err = false, ErrorText.strip(committed) end
     self.api.discardSyncStage(run.stage)
     self.runtime:close(run.progress)
     self.api.endOperation()
@@ -122,7 +123,7 @@ function SyncJob:announce(run, committed, err)
     end
     -- Refresh after the lock is free, so follow-up position and highlight syncs can start.
     local refreshed, refresh_error = pcall(self.on_commit or function() end)
-    if not refreshed then self.runtime:message(tostring(refresh_error), 5) return end
+    if not refreshed then self.runtime:message(ErrorText.strip(refresh_error), 5) return end
     if not run.automatic then self.runtime:message(_("Success."), 3) end
 end
 

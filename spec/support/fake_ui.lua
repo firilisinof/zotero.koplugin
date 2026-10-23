@@ -30,6 +30,7 @@ end
 
 function FakeUI:show(widget) table.insert(self.shown, widget) end
 function FakeUI:repaint() self.repaints = self.repaints + 1 end
+function FakeUI:refreshMenu(menu) self.refreshed_menu = menu end
 function FakeUI:schedule(callback) table.insert(self.scheduled, callback) end
 function FakeUI:wrap(callback) self.wraps = self.wraps + 1 return callback() end
 function FakeUI:run(task) return self.runner:run(task) end

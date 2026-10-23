@@ -2,8 +2,11 @@ local Util = require("src.zoteroutil")
 
 ---@type ZoteroAPI
 local API = {
-    -- Specs replace only the HTTP transport. Files and archives remain real.
+    -- Specs replace only the HTTP transport and the sync retry pause. Files and
+    -- archives remain real.
     http = require("socket.http"),
+    -- Blocks for whole seconds. Only the sync child calls it, never the UI.
+    pause = require("ffi/util").sleep,
     util = Util,
     archive = require("src.zoteroarchive"),
 }

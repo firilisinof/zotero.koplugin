@@ -54,6 +54,7 @@
 ---@field util table
 ---@field settings LuaSettings
 ---@field http table
+---@field pause fun(seconds: integer) Blocks the sync child between retry attempts
 ---@field zotero_dir string
 ---@field storage_dir string
 ---@field index ZoteroIndex|nil

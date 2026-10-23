@@ -243,6 +243,10 @@ local function stageDeletions(api, source, staged, path, keys)
     return err
 end
 
+-- Seconds the sync child waits before each repeated attempt. Edits made on another
+-- machine come in bursts, and immediate restarts kept racing the same burst (#25).
+local RETRY_PAUSES = { 10, 30 }
+
 ---@param api ZoteroAPI
 ---@param rebuild boolean
 ---@param since string|number
@@ -279,7 +283,8 @@ function Sync.stageLibrary(api, rebuild, stage)
     if err then return { error = err } end
     rebuild = rebuild or missingCache(api) or api.getSettings():readSetting("cache_schema") ~= CACHE_SCHEMA
     local since, result = rebuild and 0 or api.getLibraryVersion(), nil
-    for attempt = 1, 3 do
+    for attempt = 1, #RETRY_PAUSES + 1 do
+        if attempt > 1 then api.pause(RETRY_PAUSES[attempt - 1]) end
         local retry
         result, retry = stageAttempt(api, rebuild, since, stage)
         if not result.error then return result end

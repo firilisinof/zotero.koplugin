@@ -4,8 +4,14 @@ local Helpers = require("src.zoterohighlightutil")
 local Local = require("src.zoterohighlightlocal")
 local Remote = require("src.zoterohighlightremote")
 local Exchange = require("src.zoterohighlightexchange")
+local ErrorText = require("src.zoteroerrortext")
 local Highlights = {}
 Highlights.__index = Highlights
+
+-- An exchange opens and lays out the whole document in the child before its first
+-- request. On a Kindle Paperwhite 5 that alone outlasted the worker's 30-second
+-- default, killing exchanges whose uploads had already landed (#25).
+local EXCHANGE_LIMIT = 180
 
 --- Create a shared coordinator with its own durable, account-scoped journal.
 ---@param api ZoteroAPI
@@ -24,7 +30,7 @@ end
 function Highlights:safe(method, ...)
     local ok, result = pcall(self[method], self, ...)
     if ok then return result end
-    self.status = "Highlight sync unavailable: " .. tostring(result)
+    self.status = "Highlight sync unavailable: " .. ErrorText.strip(result)
     if self.api.operation == "highlights" and not self.cancel then self.api.endOperation() end
 end
 
@@ -57,8 +63,15 @@ function Highlights:enable(result, key, library)
     if self.reader then self:attach(self.reader, self.origin) end
 end
 
---- Check actual library write access before enabling. Example: highlights:toggle().
-function Highlights:toggle()
+--- True while enabling waits on its background permission check. Example: highlights:authorizing().
+---@return boolean
+function Highlights:authorizing() return self.authorizing_access == true end
+
+--- Check actual library write access before enabling. Example: highlights:toggle(redraw_menu).
+---@param on_settled function|nil Called after the permission check ends, so a menu can redraw
+function Highlights:toggle(on_settled)
+    -- The checkmark appears only when the check ends. A repeated tap must not undo it (#25).
+    if self:authorizing() then self.runtime:message("Still checking Zotero permissions…", 3); return end
     if self:enabled() then
         self:checkpoint(); self.api.settings:saveSetting("share_highlights", false); self.api.saveModifiedItems()
         if self.cancel then self.cancel() end
@@ -67,10 +80,15 @@ function Highlights:toggle()
     if not self.runtime:isOnline() then self.runtime:message("Connect to Wi-Fi to enable highlight sync.", 4); return end
     if not self.api.beginOperation("highlights") then self.runtime:message("A Zotero operation is already running.", 3); return end
     local key, library = self.api.getAPIKey(), self.api.getLocalLibraryPrefix()
+    self.authorizing_access = true
     self.cancel = self.runtime:background(function()
         local ok, result = pcall(Remote.authorize, self.api, key, library)
-        return ok and result or { error = type(result) == "table" and result.error or tostring(result) }
-    end, function(result) self:enable(result, key, library) end)
+        return ok and result or { error = type(result) == "table" and result.error or ErrorText.strip(result) }
+    end, function(result)
+        self.authorizing_access = nil
+        self:enable(result, key, library)
+        if on_settled then on_settled() end
+    end)
 end
 
 --- Refuse changed files and invalidate stale DOM deliveries. Example: highlights:enroll(identity).
@@ -206,7 +224,7 @@ function Highlights:launch(snapshot, manual)
         self:safe("accept", snapshot, result)
         if manual then self.runtime:message(self:statusText(), 5) end
         if not result.error then self:drain(snapshot.identity) end
-    end)
+    end, EXCHANGE_LIMIT)
 end
 
 --- Sync using the shared operation lock. Example: highlights:sync(true).

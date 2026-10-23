@@ -2,6 +2,7 @@ local Store = require("src.zoteroprogressstore")
 local Identity = require("src.zoteroprogressidentity")
 local Remote = require("src.zoteroprogressremote")
 local Codec = require("src.zoteroprogresscodec")
+local ErrorText = require("src.zoteroerrortext")
 local Progress = {}
 Progress.__index = Progress
 
@@ -24,7 +25,7 @@ function Progress:safe(method, ...)
     local ok, result = pcall(self[method], self, ...)
     if ok then return result end
     if self.api.operation == "position" and not self.cancel then self.api.endOperation() end
-    self.status = "Position sharing unavailable: " .. tostring(result)
+    self.status = "Position sharing unavailable: " .. ErrorText.strip(result)
 end
 
 --- Sharing remains opt-in. Example: progress:enabled().
@@ -39,8 +40,15 @@ function Progress:credentialsMatch()
     return auth and auth.key_hash == Identity.keyHash(self.api.getAPIKey() or "")
 end
 
---- Check permissions before enabling, without turning on Wi-Fi. Example: progress:toggle().
-function Progress:toggle()
+--- True while enabling waits on its background permission check. Example: progress:authorizing().
+---@return boolean
+function Progress:authorizing() return self.authorizing_access == true end
+
+--- Check permissions before enabling, without turning on Wi-Fi. Example: progress:toggle(redraw_menu).
+---@param on_settled function|nil Called after the permission check ends, so a menu can redraw
+function Progress:toggle(on_settled)
+    -- The checkmark appears only when the check ends. A repeated tap must not undo it (#25).
+    if self:authorizing() then self.runtime:message("Still checking Zotero permissions…", 3); return end
     if self:enabled() then
         self:checkpoint()
         self.api.settings:saveSetting("share_reading_position", false)
@@ -52,18 +60,28 @@ function Progress:toggle()
     if not self.runtime:isOnline() then self.runtime:message("Connect to Wi-Fi to enable position sharing.", 4); return end
     if not self.api.beginOperation("position") then self.runtime:message("A Zotero operation is already running.", 3); return end
     local key = self.api.getAPIKey() or ""
+    self.authorizing_access = true
     self.cancel = self.runtime:background(function() return Remote.authorize(self.api, key) end, function(result)
-        self.cancel = nil; self.api.endOperation()
-        if key ~= self.api.getAPIKey() then return end
-        if result.error then self.status = result.error; self.runtime:message(result.error, 5); return end
-        self.api.settings:saveSetting("progress_authorization", { owner = result.owner, key_hash = Identity.keyHash(key) })
-        self.api.settings:saveSetting("share_reading_position", true)
-        self.api.settings:delSetting("progress_retry")
-        self.api.saveModifiedItems()
-        self.paused, self.next_try = nil, 0
-        if self.reader and self.origin then self:attach(self.reader, self.origin, true) end
-        self:sync(true)
+        self.authorizing_access = nil
+        self:enable(key, result)
+        if on_settled then on_settled() end
     end)
+end
+
+--- Apply a permission check only to the key that requested it. Example: progress:enable(key, result).
+---@param key string The API key the permission check ran with
+---@param result table
+function Progress:enable(key, result)
+    self.cancel = nil; self.api.endOperation()
+    if key ~= self.api.getAPIKey() then return end
+    if result.error then self.status = result.error; self.runtime:message(result.error, 5); return end
+    self.api.settings:saveSetting("progress_authorization", { owner = result.owner, key_hash = Identity.keyHash(key) })
+    self.api.settings:saveSetting("share_reading_position", true)
+    self.api.settings:delSetting("progress_retry")
+    self.api.saveModifiedItems()
+    self.paused, self.next_try = nil, 0
+    if self.reader and self.origin then self:attach(self.reader, self.origin, true) end
+    self:sync(true)
 end
 
 --- Capture enrollment evidence before ReaderUI writes default progress.
@@ -219,7 +237,7 @@ function Progress:importPosition(snapshot, result, session)
     self.applying = true
     local ok, apply_error = pcall(session.codec.apply, session.codec, native)
     self.applying = false
-    if not ok then self.status = tostring(apply_error); return end
+    if not ok then self.status = ErrorText.strip(apply_error); return end
     local record = self.store:get(snapshot.identity)
     record.native, record.value = session.codec:capture(), encoded
     self.store:put(record)
@@ -265,7 +283,7 @@ function Progress:startExchange(snapshot, manual, retried)
         self.cancel = nil; self.api.endOperation()
         if key ~= self.api.getAPIKey() then return end
         local ok, err = pcall(self.finishExchange, self, snapshot, result, session, revision, manual, retried)
-        if not ok then self.status = "Could not save shared position: " .. tostring(err) end
+        if not ok then self.status = "Could not save shared position: " .. ErrorText.strip(err) end
     end)
 end
 

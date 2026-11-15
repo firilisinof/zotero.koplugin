@@ -21,6 +21,11 @@ BREW_PACKAGES=(
 info() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 
 install_prerequisites() {
+    if [ -n "${IN_NIX_SHELL:-}" ]; then
+        info "Using development shell prerequisites"
+        return
+    fi
+
     if ! command -v brew >/dev/null; then
         echo "Homebrew is required: https://brew.sh" >&2
         exit 1
@@ -54,7 +59,11 @@ clone_koreader() {
 build_koreader() {
     # kodev needs Homebrew's GNU getopt, find and make rather than the BSD
     # versions macOS ships, or it bails with "unsupported getopt version".
-    export PATH="$("${PLUGIN_DIR}/tools/gnu-path.sh"):${PATH}"
+    local gnu_path
+    gnu_path="$("${PLUGIN_DIR}/tools/gnu-path.sh")"
+    if [ -n "$gnu_path" ]; then
+        export PATH="${gnu_path}:${PATH}"
+    fi
 
     info "Fetching KOReader third party sources (this takes a while)"
     (cd "${KOREADER_SRC}" && ./kodev fetch-thirdparty)

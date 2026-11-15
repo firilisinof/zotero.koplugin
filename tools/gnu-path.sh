@@ -8,6 +8,11 @@
 
 set -euo pipefail
 
+# nix develop already provides the build tools
+if [ -n "${IN_NIX_SHELL:-}" ]; then
+    exit 0
+fi
+
 brew_prefix="$(brew --prefix)"
 
 # Exactly the four KOReader's doc/Building.md asks for. Do NOT add binutils:

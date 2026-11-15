@@ -53,3 +53,15 @@ disposable attachments, a temporary profile and cleanup through the fixture mani
 
 Keep user help in `docs/` and installation in the README. For compatibility
 changes, report the device, KOReader and Zotero versions tested.
+
+## Releases
+
+Push a `vMAJOR.MINOR.PATCH` tag to publish a release:
+
+```sh
+git tag v1.0.1
+git push origin v1.0.1
+```
+
+GitHub Actions runs `make check`, then publishes `zotero.koplugin.zip` with
+generated release notes.

@@ -62,6 +62,23 @@ describe("Zotero feature UI", function()
         for index = 6, 8 do assert.is_true(settings[index].enabled_func()) end
     end)
 
+    it("labels a sharing toggle while its permission check runs and redraws the menu after", function()
+        local Highlights = require("src.zoterohighlights")
+        local server = require("spec.support.fake_highlight_server").new()
+        api.http, api.highlights = server, Highlights.new(api, runtime)
+        local menu = {}
+        plugin:addToMainMenu(menu)
+        local toggle = menu.zotero.sub_item_table[5].sub_item_table[11]
+        assert.equals("Sync highlights", toggle.text_func())
+        local touchmenu = {}
+        toggle.callback(touchmenu)
+        assert.equals("Sync highlights (checking…)", toggle.text_func()); assert.is_false(toggle.checked_func())
+        assert.is_nil(runtime.refreshed_menu)
+        runtime:work()
+        assert.equals("Sync highlights", toggle.text_func()); assert.is_true(toggle.checked_func())
+        assert.equals(touchmenu, runtime.refreshed_menu)
+    end)
+
     it("saves WebDAV fields and page preferences through their dialogs", function()
         plugin:setWebdavAccount()
         local dialog = runtime:last()

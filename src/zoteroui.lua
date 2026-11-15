@@ -95,6 +95,13 @@ function UI:unschedule(callback)
     UIManager:unschedule(callback)
 end
 
+--- Redraw a touch menu that is still open after background work. Example: UI:refreshMenu(touchmenu).
+---@param menu table|nil The TouchMenu instance a menu callback received
+function UI:refreshMenu(menu)
+    -- The menu may have closed while the work ran; never redraw a widget off the stack.
+    if menu and UIManager:isWidgetShown(menu.show_parent) then menu:updateItems() end
+end
+
 --- Invalidate native highlight boxes after an import, without changing reading layout.
 ---@param reader table
 function UI:refreshHighlights(reader)

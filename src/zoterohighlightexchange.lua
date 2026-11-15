@@ -3,6 +3,7 @@ local util = require("util")
 local Remote = require("src.zoterohighlightremote")
 local Merge = require("src.zoterohighlightmerge")
 local Codec = require("src.zoterohighlightcodec")
+local ErrorText = require("src.zoteroerrortext")
 local Exchange = {}
 
 ---@param codec table
@@ -17,7 +18,7 @@ local function classify(codec, entries, items)
         if not used[key] and not fields.annotationIsExternal and fields.itemType == "annotation" and
             (fields.annotationType == "highlight" or fields.annotationType == "underline") then
             local ok, value = pcall(codec.remote, codec, item)
-            candidates[key] = { value = ok and value or nil, error = not ok and tostring(value) or nil }
+            candidates[key] = { value = ok and value or nil, error = not ok and ErrorText.strip(value) or nil }
         end
     end
     return candidates
@@ -161,7 +162,7 @@ local function run(context)
             local ok, err = pcall(reconcile, context, entry)
             if not ok then
                 if type(err) == "table" then return { entries = entries, error = err.error, delay = err.delay, paused = err.paused } end
-                entry.error = tostring(err)
+                entry.error = ErrorText.strip(err)
             end
         end
     end
@@ -184,7 +185,7 @@ function Exchange.run(api, secret, snapshot)
         codec:close()
     end
     if ok then return result end
-    return type(result) == "table" and result or { error = tostring(result), delay = 60 }
+    return type(result) == "table" and result or { error = ErrorText.strip(result), delay = 60 }
 end
 
 return Exchange

@@ -6,7 +6,8 @@ local Util = require("src.zoteroutil")
 local ffi = require("ffi")
 local Worker = {}
 
--- Position and highlight exchanges are a few small requests.
+-- Position exchanges and permission checks are a few small requests. Highlight
+-- exchanges also lay out the document and pass their own, longer limit.
 local DEFAULT_LIMIT = 30
 
 --- Run bounded network work without intercepting reader input. Example: Worker.run(task, callback, 60).

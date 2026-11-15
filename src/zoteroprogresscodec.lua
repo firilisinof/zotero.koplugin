@@ -1,4 +1,5 @@
 local EPUB = require("src.zoteroepub")
+local ErrorText = require("src.zoteroerrortext")
 local Codec = {}
 Codec.__index = Codec
 
@@ -12,7 +13,7 @@ function Codec.new(reader, identity)
     end
     if identity.format ~= "application/epub+zip" or not reader.rolling then return nil, "Unsupported position-sharing reader provider" end
     local ok, epub = pcall(EPUB.new, reader.document, reader.doc_settings:readSetting("cre_dom_version") or reader.document:getLatestDomVersion())
-    if not ok then return nil, tostring(epub) end
+    if not ok then return nil, ErrorText.strip(epub) end
     return setmetatable({ reader = reader, kind = "epub", epub = epub }, Codec)
 end
 

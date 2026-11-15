@@ -90,7 +90,7 @@ ZoteroAPI.http = fake
 Pagination reads `total-results` off each page, so a stubbed GET needs that header
 or the fetch reports that it could not size the collection.
 
-`API.http` is the network injection seam. Browser tests also inject named UI and task-runner fakes. File I/O and archive unpacking stay real, because each test gets its own temporary Zotero directory under `KO_HOME`, which the test runner wipes before every session.
+`API.http` is the network injection seam. `API.pause` blocks the sync child between retry attempts, and `spec/support/zotero_env.lua` records those pauses in `env.pauses` instead of sleeping. Browser tests also inject named UI and task-runner fakes. File I/O and archive unpacking stay real, because each test gets its own temporary Zotero directory under `KO_HOME`, which the test runner wipes before every session.
 
 `API` is a singleton module, so every test calls `package.reload("src.zoteroapi")` in
 `before_each` to be sure nothing carries over through module-level state.
@@ -140,7 +140,8 @@ Attachment rows also carry `title`, `author`, `year`, `file_format` and `downloa
   key and Zotero directory are unchanged. Cancellation, failure, timeout, suspend and account changes
   keep the live cache and remove the staged files. Each sync includes the permanent-deletion
   feed. All pages and endpoints must share one library version; a racing change restarts
-  the staged fetch from the saved cursor, up to three attempts. Resync fetches from version 0 without clearing
+  the staged fetch from the saved cursor, up to three attempts, pausing 10 and then 30 seconds
+  between them through `API.pause`. Resync fetches from version 0 without clearing
   the cache first. `syncAllItems` runs the same two steps in-process for specs.
 - A sync whose `items.json` or `collections.json` is missing runs as a rebuild from version 0 and
   writes both caches, even empty ones. A `meta.lua` restored without its caches keeps an old
@@ -207,6 +208,16 @@ the same as position sharing. EPUB ranges reuse the existing point resolver.
 PDF transforms are calibrated through supported MuPDF APIs in a disposable
 scratch document, never by writing the source PDF. The reader-instance geometry
 hook preserves imported rectangles and is removed on close.
+
+Each highlight exchange opens and lays out the document in the child before its
+first request, so it passes a 180-second worker limit rather than the 30-second
+default that position exchanges and permission checks use (#25).
+
+Enabling either sharing toggle waits on a background permission check. While it
+runs, `authorizing()` is true, the menu entry reads "(checking…)" and further taps
+are ignored; the menu redraws through `runtime:refreshMenu` when the check ends.
+Messages caught from `pcall` reach status lines through `ErrorText.strip` in
+`src/zoteroerrortext.lua`, because LuaJIT prefixes asserts with `file:line:`.
 
 ## Continuous integration
 
